@@ -17,8 +17,12 @@ from utils_daran import sample_box_pose, sample_insertion_pose  # robot function
 from utils_daran import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy, CNNMLPPolicy
 import cv2
-
+import DrEmpower_can as Dr # 忽略此处的报错
+from DrRobot import Robot
+import time
+from PIL import Image
 import IPython
+
 
 e = IPython.embed
 
@@ -147,10 +151,7 @@ def get_image(ts, camera_names):
     return curr_image
 
 
-# import DrEmpower_can as Dr # 忽略此处的报错
-# from DrRobot import Robot
-import time
-from PIL import Image
+
 
 FPS = 20
 
@@ -186,36 +187,31 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     width = 640
     height = 360
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # top
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap.set(3, width)
-    cap.set(4, height)
-    cap2 = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # top
-    cap2.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap2.set(3, width)
-    cap2.set(4, height)
-    cap3 = cv2.VideoCapture(2, cv2.CAP_DSHOW)  # top
-    cap3.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap3.set(3, width)
-    cap3.set(4, height)
+    cap_top = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # top
+    cap_top.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cap_top.set(3, width)
+    cap_top.set(4, height)
+    cap_right = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # right
+    cap_right.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cap_right.set(3, width)
+    cap_right.set(4, height)
+
     for i in range(5):
-        ret, image = cap.read()
-        ret, image2 = cap2.read()
-        ret, image2 = cap3.read()
+        ret, image = cap_top.read()
+        ret, image2 = cap_right.read()
 
     i = 0
     num_queries = 40
-    all_time_actions = torch.zeros([1000, 1000 + num_queries, 14]).cuda()
+    all_time_actions = torch.zeros([1000, 1000 + num_queries, 7]).cuda()
     t = 0
-    baudrate = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
 
-    dr = Dr.DrEmpower_can(com='COM9', uart_baudrate=baudrate)  # 在 windows 下控制一体化关节，相应的输入连接的COM口和波特率
-    gripper = serial.Serial("COM10", 115200)
+    dr = Dr.DrEmpower_can(com=ServoName, uart_baudrate=Baudrate)
+    gripper = serial.Serial(GripperName, Baudrate)
 
-    rightPuppet = Robot([1, 2, 3, 4, 5, 6], dr, gripper, 2)
-    leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
-    rightPuppet.move_to([22.625, 24.76, -35.909, 23.78, 0.121, 33.156])
-    leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
+    rightPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
+    # leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
+    rightPuppet.move_to([0, 0, -30, 0, 0, 0])
+    # leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
     print('move to begin')
     time.sleep(5)
 
@@ -225,34 +221,29 @@ def eval_bc(config, ckpt_name, save_episode=True):
     while True:
         i += 1
         begin = time.time()
-        ret, image = cap.read()
-        ret, image2 = cap2.read()
-        ret, image3 = cap3.read()
+        ret, image_top = cap_top.read()
+        ret, image_right = cap_right.read()
 
-        cv2.imwrite('./run/run_0_%s.jpg' % i, image)
-        cv2.imwrite('./run/run_1_%s.jpg' % i, image2)
-        cv2.imwrite('./run/run_2_%s.jpg' % i, image3)
+        cv2.imwrite('./run/run_0_%s.jpg' % i, image_top)
+        cv2.imwrite('./run/run_1_%s.jpg' % i, image_right)
 
-        left = Image.open('./run/run_0_%s.jpg' % i)
+        top = Image.open('./run/run_0_%s.jpg' % i)
         right = Image.open('./run/run_1_%s.jpg' % i)
-        top = Image.open('./run/run_2_%s.jpg' % i)
 
         print(np.array(image).shape)
-        all_cam_images = [np.array(top), np.array(left), np.array(right), ]
+        all_cam_images = [np.array(top), np.array(right), ]
         all_cam_images = np.stack(all_cam_images, axis=0)
         image_data = torch.from_numpy(all_cam_images)
         image_data = torch.einsum('k h w c -> k c h w', image_data)
         image_data = image_data / 255.0
         # min_p = np.array([-20, 0, 0, -30, 50, -50])
         # max_p = np.array([10, 100, 100, 5, 110, 100])
-        angles = dr.get_angle_speed_torque_all([i for i in range(1, 25)])
+        angles = dr.get_angle_speed_torque_all([i for i in range(1, 13)])
         angles = [row[0] for row in angles]
-        right_angles = angles[:6]
-        left_angles = angles[6:12]
+        right_angles = angles[6:]
         # robot_status = robotPuppet.get_angles()
         # jointAngle = (np.clip(np.array(robot_status['jointAngle']), min_p, max_p) - min_p) / (max_p - min_p)
-        qpos = np.array(left_angles + [leftPuppet.gripper_status] + right_angles + [rightPuppet.gripper_status]).astype(
-            np.float32)
+        qpos = np.array(right_angles + [rightPuppet.gripper_status]).astype(np.float32)
         qpos_data = torch.from_numpy(qpos).float()
         qpos_data = (qpos_data - stats["qpos_mean"]) / stats["qpos_std"]
         start = time.time()
@@ -266,7 +257,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
             print('模型预测耗时:', (time.time() - start))
             if random.random() > 0.93:
                 print('重置!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                all_time_actions = torch.zeros([1000, 1000 + num_queries, 14]).cuda()
+                all_time_actions = torch.zeros([1000, 1000 + num_queries, 7]).cuda()
             if True:
                 all_time_actions[[t], t:t + num_queries] = all_actions
                 actions_for_curr_step = all_time_actions[:, t]
@@ -283,16 +274,18 @@ def eval_bc(config, ckpt_name, save_episode=True):
                 now = post_process(all_actions[0][0].cpu())
                 print('当前指令:', now)
                 # print('平均位移:', action)
-                left_target = action[:6]
-                left_gripper = action[6]
-                right_target = action[7:13]
+                # left_target = action[:6]
+                # left_gripper = action[6]
+                # right_target = action[7:13]
+                # right_gripper = action[-1]
+                right_target = action[:6]
                 right_gripper = action[-1]
 
                 # action[-1] = 2 if now[-1] > 1.6 else 1
-                print('目标位置:', left_target, right_target, round(left_gripper), round(right_gripper))
+                print('目标位置:', right_target, round(right_gripper))
                 # robotPuppet.move_to(action[:6], False)
-                leftPuppet.move_to2(left_target, bit_width)
-                leftPuppet.set_gripper(round(left_gripper))
+                # leftPuppet.move_to2(left_target, bit_width)
+                # leftPuppet.set_gripper(round(left_gripper))
                 rightPuppet.move_to2(right_target, bit_width)
                 rightPuppet.set_gripper(round(right_gripper))
             else:
@@ -444,4 +437,7 @@ if __name__ == '__main__':
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', required=False)
     parser.add_argument('--temporal_agg', action='store_true')
 
+    ServoName = "COM5"
+    GripperName = "COM4"
+    Baudrate = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
     main(vars(parser.parse_args()))
