@@ -8,9 +8,9 @@ all_file = []
 
 step = 1
 
-data_path = "/mnt/d4t/data/aloha"
+data_path = "./output"
 
-for root, dirs, files in os.walk(os.path.join(data_path, "05_22"), topdown=False):
+for root, dirs, files in os.walk(os.path.join(data_path, "05_28"), topdown=False):
     for name in files:
         if not name.endswith('.pkl'):
             continue
@@ -113,8 +113,9 @@ for file in all_file:
 # 0
 random.shuffle(epsoides)
 train_ratio = 0.9
-train = epsoides[:int(len(epsoides) * train_ratio)]
+# train = epsoides[:int(len(epsoides) * train_ratio)]
+train = epsoides
 test = epsoides[int(len(epsoides) * train_ratio):]
-pickle.dump(train, open('train_data.pkl', 'wb'))
-pickle.dump(test, open('test.pkl', 'wb'))
+pickle.dump(train, open(os.path.join(data_path, 'train_data.pkl'), 'wb'))
+pickle.dump(test, open(os.path.join(data_path, 'test.pkl'), 'wb'))
 print(len(train), len(test))

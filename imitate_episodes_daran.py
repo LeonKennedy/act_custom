@@ -10,15 +10,14 @@ from copy import deepcopy
 from tqdm import tqdm
 from einops import rearrange
 import serial
-from constants import DT
-from constants import PUPPET_GRIPPER_JOINT_OPEN
+
+from dr.gripper import Grasper
 from utils_daran import load_data  # data functions
-from utils_daran import sample_box_pose, sample_insertion_pose  # robot functions
 from utils_daran import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy, CNNMLPPolicy
 import cv2
-import DrEmpower_can as Dr # 忽略此处的报错
-from DrRobot import Robot
+from dr import DrEmpower_can
+from dr.DrRobot import Robot, Puppet
 import time
 from PIL import Image
 import IPython
@@ -205,12 +204,12 @@ def eval_bc(config, ckpt_name, save_episode=True):
     all_time_actions = torch.zeros([1000, 1000 + num_queries, 7]).cuda()
     t = 0
 
-    dr = Dr.DrEmpower_can(com=ServoName, uart_baudrate=Baudrate)
-    gripper = serial.Serial(GripperName, Baudrate)
+    dr = DrEmpower_can(com=ServoName, uart_baudrate=Baudrate)
+    ser_port = serial.Serial(GripperName, Baudrate)
 
-    rightPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
+    rightPuppet = Puppet([7, 8, 9, 10, 11, 12], dr,  Grasper(ser_port, 1))
     # leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
-    rightPuppet.move_to([0, 0, -30, 0, 0, 0])
+    rightPuppet.move_to([0, 0, 0, 0, 0, 0])
     # leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
     print('move to begin')
     time.sleep(5)
@@ -334,7 +333,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    # load_ckpt(policy, "train/policy_epoch_16100_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_8700_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []

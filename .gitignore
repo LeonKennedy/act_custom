@@ -9,6 +9,7 @@ _wandb
 .idea/
 ckpt/
 run/
+output/
 
 **/.DS_Store
 

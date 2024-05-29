@@ -7,8 +7,8 @@ from parameter_interface import *
 import math as cm
 import struct
 
-class DrEmpower_can(object):
 
+class DrEmpower_can(object):
     uart_baudrate = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
     com = 'COM3'
     uart = 0
@@ -216,7 +216,7 @@ class DrEmpower_can(object):
                                 else:
                                     self.cur_angle_list.append(0)
                         else:
-                            self.angle_speed_torque_states(id_list=id_list) # 清除一下上次的残留数据
+                            self.angle_speed_torque_states(id_list=id_list)  # 清除一下上次的残留数据
                             angle_speed_torques = self.angle_speed_torque_states(id_list=id_list)
                             for i in range(len(id_list)):
                                 self.cur_angle_list.append(angle_speed_torques[i][0])
@@ -361,7 +361,7 @@ class DrEmpower_can(object):
                 if mode == 0:
                     for i in range(len(id_list)):
                         self.preset_angle(id_num=id_list[i], angle=angle_list[i], t=speed, param=param,
-                                     mode=mode)  # 逐个角度执行self.preset_angle
+                                          mode=mode)  # 逐个角度执行self.preset_angle
                     order_num = 0x10
                     data = self.format_data([order_num, 1], 'u32 u16', 'encode')
                     self.send_command(id_num=0, cmd=0x08, data=data, rtr=0)  # 需要用标准帧（数据帧）进行发送，不能用远程帧
@@ -375,7 +375,7 @@ class DrEmpower_can(object):
                             t = speed / abs(param) + delta_angle / (6 * speed)  # 经历完整梯形轨迹所需要的时间
                         for i in range(len(id_list)):
                             self.preset_angle(id_num=id_list[i], angle=angle_list[i], t=t, param=param,
-                                         mode=mode)  # 逐个将相对角度和时间发给对应关节
+                                              mode=mode)  # 逐个将相对角度和时间发给对应关节
                         order_num = 0x11
                         data = self.format_data([order_num, 2], 'u32 u16', 'encode')  # # 将 order_num 转换成占4字节的数据，
                         self.send_command(id_num=0, cmd=0x08, data=data, rtr=0)  # 需要用标准帧（数据帧）进行发送，不能用远程帧
@@ -456,8 +456,9 @@ class DrEmpower_can(object):
             if len(angle_list) != length or len(speed_list) != length or len(torque_list) != length:
                 print("关节数量与参数数量不一致，请检查")
             for i in range(length):
-                self.preset_angle(id_num=id_list[i], angle=angle_list[i], t=abs(speed_list[i]), param=abs(torque_list[i]),
-                             mode=1)
+                self.preset_angle(id_num=id_list[i], angle=angle_list[i], t=abs(speed_list[i]),
+                                  param=abs(torque_list[i]),
+                                  mode=1)
             order_num = 0x11
             data = self.format_data([order_num, 3], 'u32 u16', 'encode')  # # 将 order_num 转换成占4字节的数据，
             self.send_command(id_num=0, cmd=0x08, data=data, rtr=0)  # 需要用标准帧（数据帧）进行发送，不能用远程帧
@@ -566,7 +567,7 @@ class DrEmpower_can(object):
                 self.preset_angle(id_num=id_list[i], angle=angle_list[i], t=speed_list[i], param=tff_list[i], mode=2)
                 order_num = 0x16
                 data = self.format_data([order_num, int(kp_list[i] / factor), int(kd_list[i] / factor)], 'u32 s16 s16',
-                                   'encode')
+                                        'encode')
                 self.send_command(id_num=id_list[i], cmd=0x08, data=data, rtr=0)  # 需要用标准帧（数据帧）进行发送，不能用远程帧
                 time.sleep(0.00000001)
             order_num = 0x17
@@ -665,7 +666,8 @@ class DrEmpower_can(object):
                     [int(angle_list[i] / factor), int(angle_err_list[i] / factor), int(speed_err_list[i] / factor),
                      int(torque_list[i] / factor)], 's16 u16 u16 s16',
                     'encode')
-                self.send_command(id_num=id_list[i], cmd=0x06, data=data, rtr=0)  # MSG_PRESET_FOUR 需要用标准帧（数据帧）进行发送，不能用远程帧
+                self.send_command(id_num=id_list[i], cmd=0x06, data=data,
+                                  rtr=0)  # MSG_PRESET_FOUR 需要用标准帧（数据帧）进行发送，不能用远程帧
             order_num = 0x11
             data = self.format_data([order_num, 4], 'u32 u16', 'encode')  # # 将 order_num 转换成占4字节的数据，
             self.send_command(id_num=0, cmd=0x08, data=data, rtr=0)  # 需要用标准帧（数据帧）进行发送，不能用远程帧
@@ -1330,6 +1332,7 @@ class DrEmpower_can(object):
             print("---error in get_pid--：", e)
             return False
         return [P, I, D]
+
     # 参数属性读取
     def read_property(self, id_num=0, property=''):
         """读取一体化关节属性参数。
@@ -1420,7 +1423,9 @@ class DrEmpower_can(object):
                             print("return None")
                             return None
                         else:
-                            angle_speed_torques[id_list_sorted.index(id_num)] = [round(angle_speed_torque[0], 3), round(angle_speed_torque[1] * 0.01, 3), round(angle_speed_torque[2] * 0.01, 3)]
+                            angle_speed_torques[id_list_sorted.index(id_num)] = [round(angle_speed_torque[0], 3),
+                                                                                 round(angle_speed_torque[1] * 0.01, 3),
+                                                                                 round(angle_speed_torque[2] * 0.01, 3)]
                     else:
                         print("angle_speed_torque_state 函数中 ID 号有误")
                         return None
@@ -1487,7 +1492,8 @@ class DrEmpower_can(object):
                     self.write_property(id_num=id_num, property='dr.output_shaft.angle_max', value=angle_max)
                     self.write_property(id_num=id_num, property='dr.output_shaft.enable_angle_limit', value=1)
                 else:
-                    print("一体化关节输出轴当前角度不在" + str([angle_min, angle_max]) + "范围内，运行过程中软件限位范围设置失败！")
+                    print("一体化关节输出轴当前角度不在" + str(
+                        [angle_min, angle_max]) + "范围内，运行过程中软件限位范围设置失败！")
                     return False
             else:
                 print("一体化关节角度读取失败，软件限位范围设置失败！")
@@ -1553,14 +1559,15 @@ class DrEmpower_can(object):
             if READ_FLAG == 1:
                 if angle >= angle_min and angle <= angle_max:
                     self.write_property(id_num=id_num, property='dr.config.angle_min',
-                                   value=angle_min)
+                                        value=angle_min)
                     self.write_property(id_num=id_num, property='dr.config.angle_max',
-                                   value=angle_max)
+                                        value=angle_max)
                     self.write_property(id_num=id_num, property='dr.config.enable_angle_limit',
-                                   value=1)
+                                        value=1)
                     # self.save_config(id_num=id_num)
                 else:
-                    print("一体化关节输出轴当前角度不在" + str([angle_min, angle_max]) + "范围内，运行过程中软件限位范围设置失败！")
+                    print("一体化关节输出轴当前角度不在" + str(
+                        [angle_min, angle_max]) + "范围内，运行过程中软件限位范围设置失败！")
                     return False
             else:
                 print("一体化关节角度读取失败，限位属性设置失败！")
@@ -1954,7 +1961,6 @@ class DrEmpower_can(object):
             print("---error in init_config---：", e)
             return False
         return True
-
 
     """
     内部辅助函数，用户无需使用

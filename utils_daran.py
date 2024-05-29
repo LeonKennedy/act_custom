@@ -18,7 +18,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
         self.camera_names = camera_names
         self.norm_stats = norm_stats
         self.is_sim = None
-        self.files = pickle.load(open('train_data.pkl', 'rb'))
+        self.files = pickle.load(open(dataset_dir, 'rb'))
         print(len(episode_ids))
         self.__getitem__(0) # initialize self.is_sim
 
@@ -87,7 +87,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
 def get_norm_stats(dataset_dir, num_episodes):
     all_qpos_data = []
     all_action_data = []
-    files = pickle.load(open('train_data.pkl', 'rb'))
+    files = pickle.load(open(dataset_dir, 'rb'))
     for file in files:
         qpos = np.array(file['qpos'])
         # qvel = root['/observations/qvel'][()]
@@ -119,7 +119,7 @@ def load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_s
     print(f'\nData from: {dataset_dir}\n')
     # obtain train test split
     train_ratio = 0.8
-    files = pickle.load(open('train_data.pkl', 'rb'))
+    files = pickle.load(open(dataset_dir, 'rb'))
     num_episodes = len(files)
     shuffled_indices = np.random.permutation(num_episodes)
     train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
