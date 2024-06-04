@@ -68,6 +68,7 @@ class Master(Robot):
         self.set_handle_zero()
         self.set_torque([0, 0.2, 0.1, 0, 0, 0])
         self.impedance_control(2, angle=0, speed=1, tff=0, kp=0.001, kd=0.02)
+        # self.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
 
 
 class Puppet(Robot):
@@ -80,7 +81,6 @@ class Puppet(Robot):
 
     def change_gripper(self, event=None):
         self.gripper.change()
-        print("gripper status", self.gripper_status)
 
     def set_gripper(self, gripper):
         if gripper == 1:

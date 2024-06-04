@@ -18,10 +18,10 @@ from policy import ACTPolicy, CNNMLPPolicy
 import cv2
 from dr import DrEmpower_can
 from dr.DrRobot import Robot, Puppet
+from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
 import time
 from PIL import Image
 import IPython
-
 
 e = IPython.embed
 
@@ -51,27 +51,21 @@ def main(args):
     state_dim = 14
     lr_backbone = 1e-5
     backbone = 'resnet18'
-    if policy_class == 'ACT':
-        enc_layers = 4
-        dec_layers = 7
-        nheads = 8
-        policy_config = {'lr': args['lr'],
-                         'num_queries': args['chunk_size'],
-                         'kl_weight': args['kl_weight'],
-                         'hidden_dim': args['hidden_dim'],
-                         'dim_feedforward': args['dim_feedforward'],
-                         'lr_backbone': lr_backbone,
-                         'backbone': backbone,
-                         'enc_layers': enc_layers,
-                         'dec_layers': dec_layers,
-                         'nheads': nheads,
-                         'camera_names': camera_names,
-                         }
-    elif policy_class == 'CNNMLP':
-        policy_config = {'lr': args['lr'], 'lr_backbone': lr_backbone, 'backbone': backbone, 'num_queries': 1,
-                         'camera_names': camera_names, }
-    else:
-        raise NotImplementedError
+    enc_layers = 4
+    dec_layers = 7
+    nheads = 8
+    policy_config = {'lr': args['lr'],
+                     'num_queries': args['chunk_size'],
+                     'kl_weight': args['kl_weight'],
+                     'hidden_dim': args['hidden_dim'],
+                     'dim_feedforward': args['dim_feedforward'],
+                     'lr_backbone': lr_backbone,
+                     'backbone': backbone,
+                     'enc_layers': enc_layers,
+                     'dec_layers': dec_layers,
+                     'nheads': nheads,
+                     'camera_names': camera_names,
+                     }
 
     config = {
         'num_epochs': num_epochs,
@@ -90,7 +84,8 @@ def main(args):
     }
 
     if is_eval:
-        ckpt_names = [f'policy_best.ckpt']
+        ckpt_names = ['policy_best_runtime.ckpt']
+        ckpt_names = ['policy_epoch_3800_seed_0.ckpt']
         results = []
         for ckpt_name in ckpt_names:
             success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True)
@@ -115,7 +110,7 @@ def main(args):
     best_epoch, min_val_loss, best_state_dict = best_ckpt_info
 
     # save best checkpoint
-    ckpt_path = os.path.join(ckpt_dir, f'policy_best.ckpt')
+    ckpt_path = os.path.join(ckpt_dir, f'policy_best_runtime.ckpt')
     torch.save(best_state_dict, ckpt_path)
     print(f'Best ckpt, val loss {min_val_loss:.6f} @ epoch{best_epoch}')
 
@@ -150,13 +145,8 @@ def get_image(ts, camera_names):
     return curr_image
 
 
-
-
-FPS = 20
-
-
 def eval_bc(config, ckpt_name, save_episode=True):
-    set_seed(1000)
+    set_seed(0)
     ckpt_dir = config['ckpt_dir']
     state_dim = config['state_dim']
     real_robot = config['real_robot']
@@ -168,6 +158,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
     task_name = config['task_name']
     temporal_agg = config['temporal_agg']
     onscreen_cam = 'angle'
+    num_queries = policy_config["num_queries"]
 
     # load policy and stats
     ckpt_path = os.path.join(ckpt_dir, ckpt_name)
@@ -184,32 +175,30 @@ def eval_bc(config, ckpt_name, save_episode=True):
     pre_process = lambda s_qpos: (s_qpos - stats['qpos_mean']) / stats['qpos_std']
     post_process = lambda a: a * stats['action_std'] + stats['action_mean']
 
-    width = 640
-    height = 360
-    cap_top = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # top
+    cap_top = cv2.VideoCapture(CAMERA_TOP, cv2.CAP_DSHOW)  # top
     cap_top.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap_top.set(3, width)
-    cap_top.set(4, height)
-    cap_right = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # right
+    cap_top.set(3, IMAGE_W)
+    cap_top.set(4, IMAGE_H)
+    cap_right = cv2.VideoCapture(CAMERA_RIGHT, cv2.CAP_DSHOW)  # right
     cap_right.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap_right.set(3, width)
-    cap_right.set(4, height)
+    cap_right.set(3, IMAGE_W)
+    cap_right.set(4, IMAGE_H)
 
     for i in range(5):
         ret, image = cap_top.read()
         ret, image2 = cap_right.read()
 
     i = 0
-    num_queries = 40
-    all_time_actions = torch.zeros([1000, 1000 + num_queries, 7]).cuda()
+
+    all_time_actions = torch.zeros([max_timesteps, max_timesteps + num_queries, 7]).cuda()
     t = 0
 
-    dr = DrEmpower_can(com=ServoName, uart_baudrate=Baudrate)
-    ser_port = serial.Serial(GripperName, Baudrate)
+    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
+    ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
 
-    rightPuppet = Puppet([7, 8, 9, 10, 11, 12], dr,  Grasper(ser_port, 1))
+    rightPuppet = Puppet([7, 8, 9, 10, 11, 12], dr, Grasper(ser_port, 1))
     # leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
-    rightPuppet.move_to([0, 0, 0, 0, 0, 0])
+    # rightPuppet.move_to([0, 0, -30, 0, -30, 0])
     # leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
     print('move to begin')
     time.sleep(5)
@@ -219,7 +208,6 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     while True:
         i += 1
-        begin = time.time()
         ret, image_top = cap_top.read()
         ret, image_right = cap_right.read()
 
@@ -229,8 +217,8 @@ def eval_bc(config, ckpt_name, save_episode=True):
         top = Image.open('./run/run_0_%s.jpg' % i)
         right = Image.open('./run/run_1_%s.jpg' % i)
 
-        print(np.array(image).shape)
-        all_cam_images = [np.array(top), np.array(right), ]
+        # print(np.array(image).shape)
+        all_cam_images = [np.array(top), np.array(right)]
         all_cam_images = np.stack(all_cam_images, axis=0)
         image_data = torch.from_numpy(all_cam_images)
         image_data = torch.einsum('k h w c -> k c h w', image_data)
@@ -254,9 +242,9 @@ def eval_bc(config, ckpt_name, save_episode=True):
             start = time.time()
             all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
             print('模型预测耗时:', (time.time() - start))
-            if random.random() > 0.93:
-                print('重置!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                all_time_actions = torch.zeros([1000, 1000 + num_queries, 7]).cuda()
+            # if random.random() > 0.93:
+            #     print('重置!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            #     all_time_actions = torch.zeros([max_timesteps, max_timesteps + num_queries, 7]).cuda()
             if True:
                 all_time_actions[[t], t:t + num_queries] = all_actions
                 actions_for_curr_step = all_time_actions[:, t]
@@ -269,9 +257,10 @@ def eval_bc(config, ckpt_name, save_episode=True):
                 raw_action = (actions_for_curr_step * exp_weights).sum(dim=0, keepdim=True)
                 raw_action = raw_action.squeeze(0).cpu().numpy()
                 action = post_process(raw_action)
-                action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
-                now = post_process(all_actions[0][0].cpu())
-                print('当前指令:', now)
+
+                # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
+                # now = post_process(all_actions[0][0].cpu())
+                print('当前指令:', action)
                 # print('平均位移:', action)
                 # left_target = action[:6]
                 # left_gripper = action[6]
@@ -290,13 +279,9 @@ def eval_bc(config, ckpt_name, save_episode=True):
             else:
                 action = post_process(all_actions[0][0].cpu()).numpy()
                 # robot_status = robot.get_robot_status()
-                left_target = action[:6]
-                left_gripper = action[6]
-                right_target = action[7:13]
+                right_target = action[:6]
                 right_gripper = action[-1]
-                print('目标位置:', left_target, right_target, round(left_gripper), round(right_gripper))
-                leftPuppet.move_to2(left_target, bit_width)
-                leftPuppet.set_gripper(round(left_gripper))
+                print('目标位置:', right_target, round(right_gripper))
                 rightPuppet.move_to2(right_target, bit_width)
                 rightPuppet.set_gripper(round(right_gripper))
             t += 1
@@ -333,15 +318,15 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_8700_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_600_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []
     validation_history = []
     min_val_loss = np.inf
-    best_ckpt_info = None
+    best_ckpt_info = (None, None, None)
     for epoch in tqdm(range(num_epochs)):
-        print(f'\nEpoch {epoch}')
+        print(f'\nEpoch {epoch}', "best info:", best_ckpt_info[:2])
         # validation
         with torch.inference_mode():
             policy.eval()
@@ -356,10 +341,10 @@ def train_bc(train_dataloader, val_dataloader, config):
             if epoch_val_loss < min_val_loss:
                 min_val_loss = epoch_val_loss
                 best_ckpt_info = (epoch, min_val_loss, deepcopy(policy.state_dict()))
-        print(f'Val loss:   {epoch_val_loss:.5f}')
-        summary_string = ''
+                torch.save(policy.state_dict(), os.path.join(ckpt_dir, f'policy_best_runtime.ckpt'))
+        summary_string = f'Val   loss:   {epoch_val_loss:.5f} '
         for k, v in epoch_summary.items():
-            summary_string += f'{k}: {v.item():.3f} '
+            summary_string += f'{k}: {v.item():.4f} '
         print(summary_string)
 
         # training
@@ -375,10 +360,9 @@ def train_bc(train_dataloader, val_dataloader, config):
             train_history.append(detach_dict(forward_dict))
         epoch_summary = compute_dict_mean(train_history[(batch_idx + 1) * epoch:(batch_idx + 1) * (epoch + 1)])
         epoch_train_loss = epoch_summary['loss']
-        print(f'Train loss: {epoch_train_loss:.5f}')
-        summary_string = ''
+        summary_string = f'Train loss: {epoch_train_loss:.5f} '
         for k, v in epoch_summary.items():
-            summary_string += f'{k}: {v.item():.3f} '
+            summary_string += f'{k}: {v.item():.4f} '
         print(summary_string)
 
         if epoch % 100 == 0:
@@ -436,7 +420,4 @@ if __name__ == '__main__':
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', required=False)
     parser.add_argument('--temporal_agg', action='store_true')
 
-    ServoName = "COM5"
-    GripperName = "COM4"
-    Baudrate = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
     main(vars(parser.parse_args()))

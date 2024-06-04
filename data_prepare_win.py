@@ -10,7 +10,7 @@ step = 1
 
 data_path = "./output"
 
-for root, dirs, files in os.walk(os.path.join(data_path, "05_28"), topdown=False):
+for root, dirs, files in os.walk(os.path.join(data_path, "06_03"), topdown=False):
     for name in files:
         if not name.endswith('.pkl'):
             continue
@@ -19,7 +19,7 @@ for root, dirs, files in os.walk(os.path.join(data_path, "05_28"), topdown=False
 print(all_file, "\nfind", len(all_file), "files")
 
 epsoides = []
-max_length = 50
+min_length = 50
 all_show = []
 # min_p = np.array([-30, 0, 0, -30, 20, 0])
 # max_p = np.array([30, 100, 100, 10, 100, 1])
@@ -45,7 +45,7 @@ for file in all_file:
                'qpos': [],
                'action': []
                }
-    if (len(datas)) < max_length:
+    if (len(datas)) < min_length:
         continue
     for j in range(len(datas)):
         i = j

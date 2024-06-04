@@ -10,7 +10,8 @@ from einops import rearrange
 
 from constants import DT
 from constants import PUPPET_GRIPPER_JOINT_OPEN
-from my_utils import load_data # data functions
+# from my_utils import load_data # data functions
+from utils_daran import load_data
 from utils import sample_box_pose, sample_insertion_pose # robot functions
 from utils import compute_dict_mean, set_seed, detach_dict # helper functions
 from policy import ACTPolicy, CNNMLPPolicy
@@ -114,23 +115,13 @@ def main(args):
     print(f'Best ckpt, val loss {min_val_loss:.6f} @ epoch{best_epoch}')
 
 
-def make_policy(policy_class, policy_config):
-    if policy_class == 'ACT':
-        policy = ACTPolicy(policy_config)
-    elif policy_class == 'CNNMLP':
-        policy = CNNMLPPolicy(policy_config)
-    else:
-        raise NotImplementedError
+def make_policy(policy_config):
+    policy = ACTPolicy(policy_config)
     return policy
 
 
-def make_optimizer(policy_class, policy):
-    if policy_class == 'ACT':
-        optimizer = policy.configure_optimizers()
-    elif policy_class == 'CNNMLP':
-        optimizer = policy.configure_optimizers()
-    else:
-        raise NotImplementedError
+def make_optimizer(policy):
+    optimizer = policy.configure_optimizers()
     return optimizer
 
 
@@ -160,7 +151,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     # load policy and stats
     ckpt_path = os.path.join(ckpt_dir, ckpt_name)
-    policy = make_policy(policy_class, policy_config)
+    policy = make_policy(policy_config)
     loading_status = policy.load_state_dict(torch.load(ckpt_path))
     print(loading_status)
     policy.cuda()
@@ -183,7 +174,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
         query_frequency = 1
         num_queries = policy_config['num_queries']
 
-    max_timesteps = int(max_timesteps * 1) # may increase for real-world tasks
+    max_timesteps = int(max_timesteps * 1.5) # may increase for real-world tasks
 
     num_rollouts = 50
     episode_returns = []
@@ -313,14 +304,13 @@ def train_bc(train_dataloader, val_dataloader, config):
     num_epochs = config['num_epochs']
     ckpt_dir = config['ckpt_dir']
     seed = config['seed']
-    policy_class = config['policy_class']
     policy_config = config['policy_config']
 
     set_seed(seed)
 
-    policy = make_policy(policy_class, policy_config)
+    policy = make_policy(policy_config)
     policy.cuda()
-    optimizer = make_optimizer(policy_class, policy)
+    optimizer = make_optimizer(policy)
 
     train_history = []
     validation_history = []

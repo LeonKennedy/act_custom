@@ -38,7 +38,7 @@ SIM_TASK_CONFIGS = {
     },
     "move_cube":{
         'dataset_dir': './output/train_data.pkl',
-        'num_episodes': 50,
+        'num_episodes': 100,
         'episode_len': 400,
         'camera_names': ['top', "right"]
     }

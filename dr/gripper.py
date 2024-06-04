@@ -16,19 +16,19 @@ class Grasper:
     OPEN = 1
     CLOSE = 2
 
-    def __init__(self, serial_port: Serial, gid: int, min_v: int = 1350, max_v: int = 1850):
+    def __init__(self, serial_port: Serial, gid: int, min_v: int = 1350, max_v: int = 1800):
         self._min_v = min_v
         self._max_v = max_v
         self._id = gid
         self._s = serial_port
-        self.status = self.OPEN
+        self.status = -1
         self.loose()
 
     def _set_pwm(self, v: str):
         # 000P1800T1000!
         # data = b'#001P' + v.encode() + b'T1000!'
         data = f'#00{self._id}P{v}T0500!'.encode('utf-8')
-        print("send data:", data)
+        # print("send data:", data)
         self._s.write(data)
 
     def _set(self, ratio: float):

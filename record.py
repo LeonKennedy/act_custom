@@ -16,11 +16,12 @@ from datetime import datetime
 import keyboard
 import serial
 import cv2
-from dr import DrEmpower_can
 
-from constant import FPS, BAUDRATE, GRASPER_NAME, IMAGE_H, IMAGE_W, COM_NAME, FOLLOWERS_R, CAMERA_TOP, CAMERA_RIGHT, LEADERS_R
-from dr.DrRobot import Robot, Puppet, Master
+from dr import DrEmpower_can
+from dr.constants import FPS, BAUDRATE, GRASPER_NAME, IMAGE_H, IMAGE_W, COM_NAME, CAMERA_TOP, CAMERA_RIGHT, LEADERS_R
+from dr.DrRobot import PuppetRight, MasterRight
 from dr.gripper import Grasper
+from button import Button
 
 
 class Recorder:
@@ -31,9 +32,9 @@ class Recorder:
         ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
         print("init grasper")
         self.dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-        self.robotPuppetRight = Puppet(FOLLOWERS_R, self.dr, Grasper(ser_port, 1))
+        self.robotPuppetRight = PuppetRight(self.dr, Grasper(ser_port, 1))
         print("init robotPuppetRight")
-        self.robotMasterRight = Master(LEADERS_R, self.dr)
+        self.robotMasterRight = MasterRight(self.dr)
 
         self.top_cap = cv2.VideoCapture(CAMERA_TOP, cv2.CAP_DSHOW)  # top
         self.top_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
@@ -49,18 +50,11 @@ class Recorder:
     def change_right_gripper(self, event):
         self.robotPuppetRight.change_gripper()
 
-    # def open_gripper(self, event):
-    #     self.robotPuppet.open_gripper()
-
     def recording_end(self, event):
         self.recording = False
 
     def record(self):
-
-        self.robotMasterRight.set_handle_zero()
-        self.robotMasterRight.set_torque([0, -0.2, 0.1, 0, 0, 0])
-        # self.robotMasterRight.impedance_control(2, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
-        self.robotMasterRight.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
+        self.robotMasterRight.begin_for_operate()
 
         self.recording = False
         keyboard.on_press_key('v', self.recording_end)
@@ -113,20 +107,17 @@ class Recorder:
         self.recording = True
         while self.recording:
             start = time.time()
-            # 1.获取puppet角度
-
             # 2.获取图像
             camera_cost = time.time()
             ret, image = self.right_cap.read()
             retval, buffer = cv2.imencode('.jpg', image)
+
             # print(f'right:{time.time() - camera_cost}')
-            camera_cost = time.time()
+            # camera_cost = time.time()
             ret, image = self.top_cap.read()
             retval, buffer3 = cv2.imencode('.jpg', image)
             # print(f'top:{time.time() - camera_cost}')
-            # camera_cost = time.time()
             camera_cost = time.time() - camera_cost
-            angles_cost = time.time()
 
             _, _, right_master, right_puppet = self.get_master_angles()
 
@@ -138,24 +129,20 @@ class Recorder:
                 'right_gripper': self.robotPuppetRight.gripper_status,
             })
 
-            angles_cost = time.time() - angles_cost
-            move_cost = time.time()
-
-            # angle_list = self.robotMasterLeft.get_angles()
             self.robotPuppetRight.move_to2(right_master, bit_width)
-            move_cost = time.time() - move_cost
 
             while (time.time() - start) < (1 / FPS):
                 time.sleep(0.0001)
             bit_width = 1 / (time.time() - start) / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
-            print((time.time() - start), right_master, self.robotPuppetRight.gripper_status, bit_width,
-                  f'camera_cost:{camera_cost}, angles_cost:{angles_cost}, move_cost:{move_cost}')
-        episode_name = datetime.now().strftime("%m_%d_%H_%M_%S")
-        f = 'output/%s/%s.pkl' % (self.folder_name, episode_name)
+            print((time.time() - start), right_master, self.robotPuppetRight.gripper_status,
+                  "bit_width:", bit_width,
+                  "camera:", round(camera_cost, 4))
+        f = 'output/%s/%s.pkl' % (self.folder_name, datetime.now().strftime("%m_%d_%H_%M_%S"))
         pickle.dump(episode, open(f, 'wb'))
         print(f'save to {f}, length {len(episode)}')
 
 
 if __name__ == '__main__':
     r = Recorder()
+    button = Button("COM6", 9600)
     r.record()
