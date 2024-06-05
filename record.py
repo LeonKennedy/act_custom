@@ -57,19 +57,18 @@ class Recorder:
         self.robotMasterRight.begin_for_operate()
 
         self.recording = False
-        keyboard.on_press_key('v', self.recording_end)
-        # keyboard.hook_key('v', self.close_gripper)
+        # keyboard.on_press_key('v', self.recording_end)
         keyboard.on_press_key('b', self.change_right_gripper)
 
         print('begin recording?')
-        keyboard.wait('v')
+        button.block_waiting_press()
         self.dr.clear_uart()
         i = 0
         while True:
             self.record_one()
             i += 1
             print('next episode？:', i)
-            keyboard.wait('v')
+            button.block_waiting_press()
             self.dr.clear_uart()
 
     def get_master_angles(self):
@@ -86,7 +85,7 @@ class Recorder:
         self.get_master_do_puppet()
 
         print('start now?')
-        keyboard.wait('v')
+        button.block_waiting_press()
 
         episode = []
 
@@ -137,6 +136,10 @@ class Recorder:
             print((time.time() - start), right_master, self.robotPuppetRight.gripper_status,
                   "bit_width:", bit_width,
                   "camera:", round(camera_cost, 4))
+
+            if button.is_press():
+                button.reset_input_buffer()
+                break
         f = 'output/%s/%s.pkl' % (self.folder_name, datetime.now().strftime("%m_%d_%H_%M_%S"))
         pickle.dump(episode, open(f, 'wb'))
         print(f'save to {f}, length {len(episode)}')

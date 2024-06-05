@@ -10,7 +10,7 @@ step = 1
 
 data_path = "./output"
 
-for root, dirs, files in os.walk(os.path.join(data_path, "06_03"), topdown=False):
+for root, dirs, files in os.walk(os.path.join(data_path, "06_04"), topdown=False):
     for name in files:
         if not name.endswith('.pkl'):
             continue
@@ -84,7 +84,7 @@ for file in all_file:
         # epsoide['angle_pos'].append(jointAngle)
         filename = os.path.basename(file).split(".")[0]
         basename = os.path.dirname(file)
-        image_dir = os.path.join(basename, 'image')
+        image_dir = os.path.join(data_path, 'images')
         os.makedirs(image_dir, exist_ok=True)
         for key in ('right', 'top'):
             img_name = os.path.join(image_dir, f"{filename}_{key}_{i}.jpg")

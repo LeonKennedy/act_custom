@@ -10,6 +10,7 @@ class Button:
         self._s = serial.Serial(com_name, baudrate=baud, timeout=self.timeout)
 
     def block_waiting_press(self):
+        time.sleep(0.1)
         self._s.reset_input_buffer()
         while 1:
             if 0 == self._s.in_waiting:
@@ -17,7 +18,7 @@ class Button:
                 continue
             else:
                 break
-        time.sleep(1)
+        time.sleep(0.5)
         self._s.reset_input_buffer()
 
     def is_press(self) -> bool:

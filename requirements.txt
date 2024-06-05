@@ -14,6 +14,6 @@ h5py
 ipython
 pyserial
 keyboard
-
+pymodbus
 
 # cd act/detr && pip install -e .

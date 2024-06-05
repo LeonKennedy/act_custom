@@ -17,7 +17,7 @@ from utils_daran import compute_dict_mean, set_seed, detach_dict  # helper funct
 from policy import ACTPolicy, CNNMLPPolicy
 import cv2
 from dr import DrEmpower_can
-from dr.DrRobot import Robot, Puppet
+from dr.DrRobot import PuppetRight
 from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
 import time
 from PIL import Image
@@ -85,7 +85,7 @@ def main(args):
 
     if is_eval:
         ckpt_names = ['policy_best_runtime.ckpt']
-        ckpt_names = ['policy_epoch_3800_seed_0.ckpt']
+        ckpt_names = ['policy_epoch_2600_seed_0.ckpt']
         results = []
         for ckpt_name in ckpt_names:
             success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True)
@@ -196,7 +196,8 @@ def eval_bc(config, ckpt_name, save_episode=True):
     dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
     ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
 
-    rightPuppet = Puppet([7, 8, 9, 10, 11, 12], dr, Grasper(ser_port, 1))
+    rightPuppet = PuppetRight(dr, Grasper(ser_port, 1))
+    # rightPuppet.move_to([10, 10, 0, 0, 0, 0], wait=True)
     # leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
     # rightPuppet.move_to([0, 0, -30, 0, -30, 0])
     # leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
@@ -318,7 +319,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_600_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_1000_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []
