@@ -12,7 +12,6 @@ import os
 import pickle
 import time
 from datetime import datetime
-
 import keyboard
 import serial
 import cv2
@@ -58,7 +57,7 @@ class Recorder:
 
         self.recording = False
         # keyboard.on_press_key('v', self.recording_end)
-        keyboard.on_press_key('b', self.change_right_gripper)
+        keyboard.on_press_key('f', self.change_right_gripper)
 
         print('begin recording?')
         button.block_waiting_press()

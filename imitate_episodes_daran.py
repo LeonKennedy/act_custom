@@ -12,8 +12,8 @@ from einops import rearrange
 import serial
 
 from dr.gripper import Grasper
-from utils_daran import load_data  # data functions
-from utils_daran import compute_dict_mean, set_seed, detach_dict  # helper functions
+from my_utils import load_data  # data functions
+from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy, CNNMLPPolicy
 import cv2
 from dr import DrEmpower_can
@@ -85,7 +85,7 @@ def main(args):
 
     if is_eval:
         ckpt_names = ['policy_best_runtime.ckpt']
-        ckpt_names = ['policy_epoch_2600_seed_0.ckpt']
+        ckpt_names = ['policy_epoch_4800_seed_0.ckpt']
         results = []
         for ckpt_name in ckpt_names:
             success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True)
@@ -96,7 +96,7 @@ def main(args):
         print()
         exit()
 
-    train_dataloader, val_dataloader, stats, _ = load_data(dataset_dir, num_episodes, camera_names, batch_size_train,
+    train_dataloader, val_dataloader, stats, _ = load_data(dataset_dir, camera_names, batch_size_train,
                                                            batch_size_val)
 
     # save dataset stats
@@ -319,7 +319,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_1000_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_4800_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []

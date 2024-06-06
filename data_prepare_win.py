@@ -10,7 +10,7 @@ step = 1
 
 data_path = "./output"
 
-for root, dirs, files in os.walk(os.path.join(data_path, "06_04"), topdown=False):
+for root, dirs, files in os.walk(os.path.join(data_path, "06_06"), topdown=False):
     for name in files:
         if not name.endswith('.pkl'):
             continue

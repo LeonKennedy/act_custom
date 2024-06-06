@@ -1,5 +1,3 @@
-
-
 import json
 import pickle
 
@@ -7,6 +5,7 @@ import numpy as np
 import torch
 import os
 import h5py
+from PIL import Image
 from torch.utils.data import TensorDataset, DataLoader
 
 import IPython
@@ -18,10 +17,11 @@ class EpisodicDataset(torch.utils.data.Dataset):
     def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats):
         super(EpisodicDataset).__init__()
         self.episode_ids = episode_ids
-        self.dataset_dir = dataset_dir
         self.camera_names = camera_names
         self.norm_stats = norm_stats
         self.is_sim = True
+        self.files = pickle.load(open(dataset_dir, 'rb'))
+        self.fixed_length = 60
         self.__getitem__(0)  # initialize self.is_sim
 
     def __len__(self):
@@ -31,35 +31,40 @@ class EpisodicDataset(torch.utils.data.Dataset):
         sample_full_episode = False  # hardcode
 
         episode_id = self.episode_ids[index]
-        dataset_path = os.path.join(self.dataset_dir, f'episode_{episode_id}.pkl')
-        with open(dataset_path, 'rb') as f:
-            root = pickle.load(f)
-        root_qpos = np.array(root['qpos'], dtype=np.float32)
-        original_action_shape = root_qpos.shape
+        file = self.files[episode_id]
+        original_action_shape = file['action'].shape
         episode_len = original_action_shape[0]
         if sample_full_episode:
             start_ts = 0
         else:
             start_ts = np.random.choice(episode_len)
         # get observation at start_ts only
-        qpos = root_qpos[start_ts]
+        qpos = file['qpos'][start_ts]
         image_dict = dict()
         for cam_name in self.camera_names:
-            image_dict[cam_name] = root["camera"][cam_name][start_ts]
+            image_dict[cam_name] = file["image"][cam_name][start_ts]
         # get all actions after and including start_ts
-        is_sim = True
-        action = root['action'][start_ts:]
-        action_len = episode_len - start_ts
 
-        padded_action = np.zeros(original_action_shape, dtype=np.float32)
-        padded_action[:action_len] = action
-        is_pad = np.zeros(episode_len)
-        is_pad[action_len:] = 1
+        action_cur_ts = max(0, start_ts - 1)
+        if action_cur_ts + self.fixed_length > episode_len:
+            padded_action = np.zeros((self.fixed_length, original_action_shape[1]), dtype=np.float32)
+            action = file['action'][action_cur_ts:]  # hack, to make timesteps more aligned
+            action_len = episode_len - action_cur_ts  # hack, to make timesteps more aligned
+
+            padded_action[:action_len] = action
+            is_pad = np.zeros(self.fixed_length)
+            is_pad[action_len:] = 1
+        else:
+            padded_action = file['action'][action_cur_ts: action_cur_ts + self.fixed_length]
+            is_pad = np.zeros(self.fixed_length)
+
+
 
         # new axis for different cameras
         all_cam_images = []
         for cam_name in self.camera_names:
-            all_cam_images.append(image_dict[cam_name])
+            img = Image.open(image_dict[cam_name])
+            all_cam_images.append(img)
         all_cam_images = np.stack(all_cam_images, axis=0)
 
         # construct observations
@@ -79,25 +84,28 @@ class EpisodicDataset(torch.utils.data.Dataset):
         return image_data, qpos_data, action_data, is_pad
 
 
-def get_norm_stats(dataset_dir, num_episodes):
+def get_norm_stats(dataset_dir):
     all_qpos_data = []
+    all_action_data = []
     files = pickle.load(open(dataset_dir, 'rb'))
-    for episode_idx in range(num_episodes):
-        dataset_path = os.path.join(dataset_dir, f'episode_{episode_idx}.pkl')
-        with open(dataset_path, 'rb') as f:
-            root = pickle.load(f)
-            qpos = np.array(root["qpos"], dtype=np.float32)
+    for file in files:
+        qpos = np.array(file['qpos'])
+        action = np.array(file['action'])
         all_qpos_data.append(torch.from_numpy(qpos))
-    all_qpos_data = torch.stack(all_qpos_data)
+        all_action_data.append(torch.from_numpy(action))
+
+    all_qpos_data = torch.concatenate(all_qpos_data)
+    all_action_data = torch.concatenate(all_action_data)
 
     # normalize qpos data
-    qpos_mean = all_qpos_data.mean(dim=[0, 1], keepdim=True)
-    qpos_std = all_qpos_data.std(dim=[0, 1], keepdim=True)
+    qpos_mean = all_qpos_data.mean(dim=[0], keepdim=True)
+    qpos_std = all_qpos_data.std(dim=[0], keepdim=True)
     qpos_std = torch.clip(qpos_std, 1e-2, np.inf)  # clipping
 
     # normalize action data
-    action_mean = qpos_mean
-    action_std = qpos_std
+    action_mean = all_action_data.mean(dim=[0], keepdim=True)
+    action_std = all_action_data.std(dim=[0], keepdim=True)
+    action_std = torch.clip(action_std, 1e-2, np.inf)
 
     stats = {"action_mean": action_mean.numpy().squeeze(), "action_std": action_std.numpy().squeeze(),
              "qpos_mean": qpos_mean.numpy().squeeze(), "qpos_std": qpos_std.numpy().squeeze(),
@@ -106,25 +114,27 @@ def get_norm_stats(dataset_dir, num_episodes):
     return stats
 
 
-def load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_size_val):
+def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val):
     print(f'\nData from: {dataset_dir}\n')
     # obtain train test split
     files = pickle.load(open(dataset_dir, 'rb'))
+    num_episodes = len(files)
     train_ratio = 0.8
     shuffled_indices = np.random.permutation(num_episodes)
     train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
     val_indices = shuffled_indices[int(train_ratio * num_episodes):]
+    print("train data length:", len(train_indices), "val data length:", len(val_indices))
 
     # obtain normalization stats for qpos and action
-    norm_stats = get_norm_stats(dataset_dir, num_episodes)
+    norm_stats = get_norm_stats(dataset_dir)
 
     # construct dataset and dataloader
     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
     val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True,
-                                  num_workers=1, prefetch_factor=1)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=1,
-                                prefetch_factor=1)
+                                  )
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True,
+                                )
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -192,3 +202,22 @@ def detach_dict(d):
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
+
+
+if __name__ == '__main__':
+    local_data = "output/train_data.pkl"
+    files = pickle.load(open(local_data, 'rb'))
+    num_episodes = len(files)
+    shuffled_indices = np.random.permutation(num_episodes)
+    train_indices = shuffled_indices[:int(0.9 * num_episodes)]
+    val_indices = shuffled_indices[int(0.9 * num_episodes):]
+
+    norm_stats = get_norm_stats(local_data)
+
+    # construct dataset and dataloader
+    train_dataset = EpisodicDataset(train_indices, local_data, ["top", "right"], norm_stats)
+    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,
+                                  num_workers=8, prefetch_factor=1
+                                  )
+    for x in train_dataloader:
+        print(x)
