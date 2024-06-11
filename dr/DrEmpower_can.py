@@ -1405,11 +1405,9 @@ class DrEmpower_can(object):
             id_list_sorted = sorted(id_list)
             # udata = read_data_state(n)
             udata = self.read_data_state2(n)
-            print(2)
             angle_speed_torques = [None] * n  # 创建一个指定长度为 n 的空数组
             if READ_FLAG == 1:
                 id_num_list = []
-                print(3)
                 for i in range(n):
                     jdata = udata[i * 16: (i + 1) * 16]
                     cdata = self.uart_to_can_ID(data=jdata)
@@ -1431,7 +1429,6 @@ class DrEmpower_can(object):
                     else:
                         print("angle_speed_torque_state 函数中 ID 号有误")
                         return None
-                print(6)
                 return angle_speed_torques
         except Exception as e:
             print("---error in angle_speed_torque_state--：", e)

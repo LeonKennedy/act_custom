@@ -29,7 +29,6 @@ e = IPython.embed
 def main(args):
     set_seed(1)
     # command line parameters
-    is_eval = args['eval']
     ckpt_dir = args['ckpt_dir']
     onscreen_render = args['onscreen_render']
     task_name = args['task_name']
@@ -76,7 +75,7 @@ def main(args):
         'real_robot': True
     }
 
-    ckpt_name = 'policy_epoch_4800_seed_0.ckpt'
+    ckpt_name = 'policy_epoch_5900_seed_0.ckpt'
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
     print()
@@ -111,16 +110,17 @@ def init_camera(camera_id):
     return cap
 
 
+def get_angle_all(dr):
+    angles = dr.get_angle_speed_torque_all([i for i in range(1, 26)])
+    angles = [row[0] for row in angles]
+    return angles[12:18], angles[18:], angles[:6], angles[6:12]
+
+
 def eval_bc(config, ckpt_name, save_episode=True):
     set_seed(1000)
     ckpt_dir = config['ckpt_dir']
-    state_dim = config['state_dim']
-    real_robot = config['real_robot']
     onscreen_render = config['onscreen_render']
     policy_config = config['policy_config']
-    camera_names = config['camera_names']
-    task_name = config['task_name']
-    onscreen_cam = 'angle'
 
     # load policy and stats
     ckpt_path = os.path.join(ckpt_dir, ckpt_name)
@@ -140,6 +140,14 @@ def eval_bc(config, ckpt_name, save_episode=True):
     # load environment
     cap_top = init_camera(CAMERA_TOP)
     cap_right = init_camera(CAMERA_RIGHT)
+    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
+    ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
+    right_puppet = PuppetRight(dr, Grasper(ser_port, 1))
+
+    flag = input("is need move to zero?(t)")
+    if flag == 't':
+        right_puppet.move_head_to_zero()
+        # right_puppet.move_to([0, 10, 0, 0, 0, 0])
 
     # clean flush
     for i in range(5):
@@ -148,56 +156,47 @@ def eval_bc(config, ckpt_name, save_episode=True):
         ret, image2 = cap_right.read()
         assert ret
 
-    query_frequency = 1
+    query_frequency = 9
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 60 # may increase for real-world tasks
+    max_timesteps = 60  # may increase for real-world tasks
     all_time_actions = np.zeros([max_timesteps, max_timesteps + num_queries, 7])
-
-
-    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-    ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
-    right_puppet = PuppetRight(dr, Grasper(ser_port, 1))
-    print('wait 5 section... then move to begin...')
-    time.sleep(5)
 
     t = 0
     while True:
         # Observation
-        ret, image_top = cap_top.read()
-        ret, image_right = cap_right.read()
-        all_cam_images = np.stack([
-            cv2.cvtColor(image_top, cv2.COLOR_BGR2RGB),
-            cv2.cvtColor(image_right, cv2.COLOR_BGR2RGB)
-        ], axis=0)
-        image_data = torch.from_numpy(all_cam_images)
-        image_data = torch.einsum('k h w c -> k c h w', image_data)
-        image_data = image_data / 255.0
-
-        angles = dr.get_angle_speed_torque_all([i for i in range(1, 13)])
-        angles = [row[0] for row in angles]
-        right_angles = angles[6:]
-        qpos = np.array(right_angles + [right_puppet.gripper_status]).astype(np.float32)
-        qpos_data = torch.from_numpy(qpos).float()
-        qpos_data = pre_process(qpos_data)
-
         start = time.time()
-        while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
-            time.sleep(0.0001)
-        a = time.time() - start
-        bit_width = 1 / a / 2
 
-        with torch.inference_mode():
-            start = time.time()
-            all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
-            print('模型预测耗时:', (time.time() - start))
+        if t % query_frequency == 0:
+            ret, image_top = cap_top.read()
+            ret, image_right = cap_right.read()
+            all_cam_images = np.stack([
+                cv2.cvtColor(image_top, cv2.COLOR_BGR2RGB),
+                cv2.cvtColor(image_right, cv2.COLOR_BGR2RGB)
+            ], axis=0)
+            image_data = torch.from_numpy(all_cam_images)
+            image_data = torch.einsum('k h w c -> k c h w', image_data)
+            image_data = image_data / 255.0
+
+            _, _, _, right_angles = get_angle_all(dr)
+            qpos = np.array(right_angles + [right_puppet.gripper_status]).astype(np.float32)
+            qpos_data = torch.from_numpy(qpos).float()
+            qpos_data = pre_process(qpos_data)
+
+            with torch.inference_mode():
+                start = time.time()
+                all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
+                print('模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
 
         all_time_actions[:, :-1] = all_time_actions[:, 1:]
-        if t == 50:
+        if t < num_queries:
+            all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
+        else:
             all_time_actions[:-1] = all_time_actions[1:]
-        all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
+            all_time_actions[num_queries, :num_queries] = all_actions.cpu().numpy()
+
         actions_for_curr_step = all_time_actions[:, 0]
         actions_populated = np.all(actions_for_curr_step != 0, axis=1)
         actions_for_curr_step = actions_for_curr_step[actions_populated]
@@ -210,7 +209,6 @@ def eval_bc(config, ckpt_name, save_episode=True):
         # raw_action = raw_action.squeeze(0).cpu().numpy()
         action = post_process(raw_action)
 
-
         ##  DOING ROBOTS
         # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
         # now = post_process(all_actions[0][0].cpu())
@@ -221,64 +219,16 @@ def eval_bc(config, ckpt_name, save_episode=True):
         # robotPuppet.move_to(action[:6], False)
         # leftPuppet.move_to2(left_target, bit_width)
         # leftPuppet.set_gripper(round(left_gripper))
+
+        while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
+            time.sleep(0.0001)
+        a = time.time() - start
+        bit_width = 1 / a / 2
         right_puppet.move_to2(right_target, bit_width)
         right_puppet.set_gripper(round(right_gripper))
 
-        if t < 50:
-            t += 1
+        t += 1
         if onscreen_render:
-            pass
-
-
-        qpos_history = torch.zeros((1, max_timesteps, state_dim)).cuda()
-        image_list = []  # for visualization
-        qpos_list = []
-        target_qpos_list = []
-        rewards = []
-        # with torch.inference_mode():
-        #     for t in range(max_timesteps):
-        #         ### update onscreen render and wait for DT
-        #         if onscreen_render:
-        #             pass
-        #
-        #         ### process previous timestep to get qpos and image_list
-        #         obs = ts.observation
-        #         if 'images' in obs:
-        #             image_list.append(obs['images'])
-        #         else:
-        #             image_list.append({'main': obs['image']})
-        #         qpos_numpy = np.array(obs['qpos'])
-        #         qpos = pre_process(qpos_numpy)
-        #         qpos = torch.from_numpy(qpos).float().cuda().unsqueeze(0)
-        #         qpos_history[:, t] = qpos
-        #         curr_image = get_image(ts, camera_names)
-        #
-        #         ### query policy
-        #         if t % query_frequency == 0:
-        #             all_actions = policy(qpos, curr_image)
-        #         if temporal_agg:
-        #             all_time_actions[[t], t:t + num_queries] = all_actions
-        #             actions_for_curr_step = all_time_actions[:, t]
-        #             actions_populated = torch.all(actions_for_curr_step != 0, axis=1)
-        #             actions_for_curr_step = actions_for_curr_step[actions_populated]
-        #             k = 0.01
-        #             exp_weights = np.exp(-k * np.arange(len(actions_for_curr_step)))
-        #             exp_weights = exp_weights / exp_weights.sum()
-        #             exp_weights = torch.from_numpy(exp_weights).cuda().unsqueeze(dim=1)
-        #             raw_action = (actions_for_curr_step * exp_weights).sum(dim=0, keepdim=True)
-        #         else:
-        #             raw_action = all_actions[:, t % query_frequency]
-        #
-        #         ### post-process actions
-        #         raw_action = raw_action.squeeze(0).cpu().numpy()
-        #         action = post_process(raw_action)
-        #         target_qpos = action
-        #
-        #         ### for visualization
-        #         qpos_list.append(qpos_numpy)
-        #         target_qpos_list.append(target_qpos)
-
-        if real_robot:
             pass
 
         # if save_episode:
