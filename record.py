@@ -18,9 +18,10 @@ import cv2
 
 from dr import DrEmpower_can
 from dr.constants import FPS, BAUDRATE, GRASPER_NAME, IMAGE_H, IMAGE_W, COM_NAME, CAMERA_TOP, CAMERA_RIGHT, LEADERS_R
-from dr.DrRobot import PuppetRight, MasterRight
-from dr.gripper import Grasper
+from dr.DrRobot import PuppetRight, MasterRight, PuppetLeft, MasterLeft, build_arm
 from button import Button
+from camera import CameraGroup
+from my_utils import get_angle_all
 
 
 class Recorder:
@@ -28,36 +29,14 @@ class Recorder:
     def __init__(self):
         self.folder_name = "%s" % (datetime.now().strftime("%m_%d"))
         os.makedirs("output/%s" % self.folder_name, exist_ok=True)
-        ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
-        print("init grasper")
         self.dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-        self.robotPuppetRight = PuppetRight(self.dr, Grasper(ser_port, 1))
-        print("init robotPuppetRight")
-        self.robotMasterRight = MasterRight(self.dr)
+        self.master_left, self.puppet_left, self.master_right, self.puppet_right = build_arm(self.dr)
 
-        self.top_cap = cv2.VideoCapture(CAMERA_TOP, cv2.CAP_DSHOW)  # top
-        self.top_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-        self.top_cap.set(3, IMAGE_W)
-        self.top_cap.set(4, IMAGE_H)
-        print("init top_cap")
-        self.right_cap = cv2.VideoCapture(CAMERA_RIGHT, cv2.CAP_DSHOW)  # right
-        self.right_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-        self.right_cap.set(3, IMAGE_W)
-        self.right_cap.set(4, IMAGE_H)
-        print("init right_cap")
-
-    def change_right_gripper(self, event):
-        self.robotPuppetRight.change_gripper()
-
-    def recording_end(self, event):
-        self.recording = False
+        self.camera = CameraGroup()
 
     def record(self):
-        self.robotMasterRight.begin_for_operate()
-
-        self.recording = False
-        # keyboard.on_press_key('v', self.recording_end)
-        keyboard.on_press_key('f', self.change_right_gripper)
+        self.master_left.begin_for_operate()
+        self.master_right.begin_for_operate()
 
         print('begin recording?')
         button.block_waiting_press()
@@ -70,15 +49,11 @@ class Recorder:
             button.block_waiting_press()
             self.dr.clear_uart()
 
-    def get_master_angles(self):
-        angles = self.dr.get_angle_speed_torque_all([i for i in range(1, 13)])
-        angles = [row[0] for row in angles]
-        return None, None, angles[:6], angles[6:]
-
     def get_master_do_puppet(self):
-        _, _, right_master, right_puppet = self.get_master_angles()
-        print(f'right_master {right_master}')
-        self.robotPuppetRight.move_to(right_master)
+        lm, lp, _, rm, rp, _ = get_angle_all(self.dr)
+        print(f'left master: {lm}, right master {rm}')
+        self.puppet_left.move_to(lm)
+        self.puppet_right.move_to(rm)
 
     def record_one(self):
         self.get_master_do_puppet()
@@ -86,62 +61,59 @@ class Recorder:
         print('start now?')
         button.block_waiting_press()
 
-        episode = []
+        episodes = []
 
         self.get_master_do_puppet()
         start = time.time()
-        for i in range(5):
-            # 2.获取图像
-            ret, image = self.top_cap.read()
-            assert ret
-            retval, buffer = cv2.imencode('.jpg', image)
-            ret, image = self.right_cap.read()
-            assert ret
-            retval, buffer2 = cv2.imencode('.jpg', image)
+        for i in range(3):
+            images = self.camera.read_sync()
+
         while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
             time.sleep(0.0001)
         a = time.time() - start
         bit_width = 1 / a / 2
-        self.recording = True
-        while self.recording:
+
+        while 1:
             start = time.time()
             # 2.获取图像
             camera_cost = time.time()
-            ret, image = self.right_cap.read()
-            retval, buffer = cv2.imencode('.jpg', image)
-
-            # print(f'right:{time.time() - camera_cost}')
-            # camera_cost = time.time()
-            ret, image = self.top_cap.read()
-            retval, buffer3 = cv2.imencode('.jpg', image)
-            # print(f'top:{time.time() - camera_cost}')
+            images = self.camera.read_sync()
             camera_cost = time.time() - camera_cost
 
-            _, _, right_master, right_puppet = self.get_master_angles()
+            lm, lp, left_puppet_gripper, rm, rp, right_puppet_gripper = get_angle_all(self.dr)
+            left_master_trigger = self.master_left.trigger.read()
+            right_master_trigger = self.master_right.trigger.read()
+            episode = {
+                'left_master': lm + [self.puppet_left.ratio_to_angle(left_master_trigger)],
+                'left_puppet': lp + [left_puppet_gripper],
+                'left_trigger': left_master_trigger,
 
-            episode.append({
-                'right': buffer.tobytes(),
-                'top': buffer3.tobytes(),
-                'right_puppet': right_puppet,
-                'right_master': right_master,
-                'right_gripper': self.robotPuppetRight.gripper_status,
-            })
+                'right_master': rm + [self.puppet_right.ratio_to_angle(right_master_trigger)],
+                'right_puppet': rp + [right_puppet_gripper],
+                'right_trigger': right_master_trigger,
 
-            self.robotPuppetRight.move_to2(right_master, bit_width)
+                'camera': images
+            }
+            episodes.append(episode)
+
+            self.puppet_left.set_gripper_ratio(left_master_trigger)
+            self.puppet_right.set_gripper_ratio(right_master_trigger)
+            self.puppet_right.move_to2(rm, bit_width)
+            self.puppet_left.move_to2(lm, bit_width)
 
             while (time.time() - start) < (1 / FPS):
                 time.sleep(0.0001)
             bit_width = 1 / (time.time() - start) / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
-            print((time.time() - start), right_master, self.robotPuppetRight.gripper_status,
-                  "bit_width:", bit_width,
-                  "camera:", round(camera_cost, 4))
+            print((time.time() - start), "bit_width:", bit_width, "camera:", round(camera_cost, 4))
+            print("left", episode["left_master"], episode["left_puppet"])
+            print("right", episode["right_master"], episode["right_puppet"])
 
             if button.is_press():
                 button.reset_input_buffer()
                 break
         f = 'output/%s/%s.pkl' % (self.folder_name, datetime.now().strftime("%m_%d_%H_%M_%S"))
-        pickle.dump(episode, open(f, 'wb'))
-        print(f'save to {f}, length {len(episode)}')
+        pickle.dump(episodes, open(f, 'wb'))
+        print(f'save to {f}, length {len(episodes)}')
 
 
 if __name__ == '__main__':

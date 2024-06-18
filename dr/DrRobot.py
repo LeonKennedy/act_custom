@@ -2,20 +2,14 @@ from typing import List, Optional
 from loguru import logger
 
 from .DrEmpower_can import DrEmpower_can
-from .gripper import Grasper
-from .trigger import Trigger
-from .constants import LEADERS_R, FOLLOWERS_R, LEADERS_L, FOLLOWERS_L, FOLLOWERS_LEFT_ANGLE_MAX, \
-    FOLLOWERS_LEFT_ANGLE_MIN
+from .dx_trigger import Trigger, build_trigger
+from .constants import LEADERS_R, FOLLOWERS_R, LEADERS_L, FOLLOWERS_L, GRIPPER_RANGE_MAX, TRIGGER_NAME
 
 
 class Robot:
-    def __init__(self, id_list: List, dr: DrEmpower_can, gripper: Grasper = None):
+    def __init__(self, id_list: List, dr: DrEmpower_can):
         self.id_list = id_list
         self.dr = dr
-        if gripper:
-            self.gripper = gripper
-
-        self.recording = False
 
     def _check_is_have(self, sid: int) -> bool:
         if sid in self.id_list:
@@ -48,7 +42,7 @@ class Robot:
 
     def move_zero(self):
         self.dr.set_angles(id_list=self.id_list, angle_list=[0, 0, 0, 0, 0, 0], speed=10, param=10,
-                           mode=1)  # 先控制关节已梯形估计模型平缓运动到曲线起点
+                           mode=1)
 
     def move_to(self, angle_list, wait=False):
         print('move_to:', angle_list)
@@ -65,6 +59,14 @@ class Robot:
             self.dr.reboot(i)
         logger.debug(f"{self.__class__.__name__} {self.id_list} reboot")
 
+    def set_torque_zero(self):
+        self.set_torque([0, 0, 0, 0, 0, 0])
+
+    def set_zeros(self):
+        for i in self.id_list:
+            self.dr.set_zero_position(i)
+        logger.debug(f"{self.__class__.__name__} set {self.id_list} zero position!")
+
     # ---         gripper   --
 
     @property
@@ -74,90 +76,107 @@ class Robot:
 
 class Master(Robot):
 
-    def set_handle_zero(self):
-        print("ser", self.id_list[-1], "set to zero position")
-        self.dr.set_zero_position(self.id_list[-1])
+    def __init__(self, id_list: List, dr: DrEmpower_can, trigger: Trigger):
+        super().__init__(id_list, dr)
+        self.trigger = trigger
 
     def begin_for_operate(self):
-        pass
+        self.set_torque_zero()
+        # self.impedance_control(2, angle=0, speed=1, tff=0, kp=0.001, kd=0.02)
+        # self.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
+
+    def change_impedance_control(self, i: int, angle: float):
+        self.impedance_control(i, angle=angle)
 
 
 class Puppet(Robot):
 
-    def open_gripper(self, event=None):
-        self.gripper.loose()
+    def __init__(self, id_list: List, dr: DrEmpower_can):
+        super().__init__(id_list[:-1], dr)
+        self.gripper_id = id_list[-1]
+        self.gripper_current_angle = None
+        self.angle_range = (0, 0)
+        self.init_gripper()
 
-    def close_gripper(self, event=None):
-        self.gripper.clamp()
+    def _check_is_have(self, sid: int) -> bool:
+        if sid == self.gripper_id:
+            return True
+        return super()._check_is_have(sid)
 
-    def change_gripper(self, event=None):
-        self.gripper.change()
+    def init_gripper(self):
+        self.dr.set_angle(self.gripper_id, 150, speed=10, param=10, mode=1)
+        self.gripper_current_angle = 150
+        self.dr.position_done(self.gripper_id)
 
-    def set_gripper(self, gripper):
-        if gripper == 1:
-            self.open_gripper()
-        elif gripper == 2:
-            self.close_gripper()
+        self.angle_range = (0, GRIPPER_RANGE_MAX)
+        self.dr.set_angle_range(self.gripper_id, angle_min=self.angle_range[0], angle_max=self.angle_range[1])
+        logger.debug(f"{self.__class__.__name__} set angle range {self.angle_range}")
+
+        self.dr.set_torque_limit(self.gripper_id, 0.39)
+
+    def ratio_to_angle(self, ratio: float):
+        return self.angle_range[1] - (self.angle_range[1] - self.angle_range[0]) * ratio
+
+    def set_gripper_ratio(self, ratio: float, max_speed: int = 30, param: int = 10):
+        angle = self.ratio_to_angle(ratio)
+        self.set_gripper(angle)
+
+    def set_gripper(self, angle: float):
+        if self.gripper_current_angle + 3 > angle > self.gripper_current_angle - 3:
+            return
+        print(self.gripper_id, angle)
+        logger.debug(f"set {self.__class__.__name__} gripper {angle} speed 10 param 10 mode 0")
+        self.dr.set_angle(self.gripper_id, angle, 10, 10, 0)
+        self.gripper_current_angle = angle
+
+    # def open_gripper(self, event=None):
+    #     self.gripper.loose()
+    #
+    # def close_gripper(self, event=None):
+    #     self.gripper.clamp()
+    #
+    # def change_gripper(self, event=None):
+    #     self.gripper.change()
 
 
 class MasterLeft(Master):
-    def __init__(self, dr):
-        super().__init__(LEADERS_L, dr)
-        trigger = Trigger()
-        logger.debug(f"left trigger init, get zero is: {trigger.zero}")
-        self.trigger = trigger
-
-    def read(self) -> float:
-        return self.trigger.read()
+    def __init__(self, dr, trigger):
+        super().__init__(LEADERS_L, dr, trigger)
 
     def begin_for_operate(self):
         super().begin_for_operate()
-        self.set_torque([0, -0.2, -0.1, 0, 0, 0])
-        self.set_torque([0, 0, 0, 0, 0, 0])
-        self.impedance_control(self.id_list[1], angle=19, speed=1, tff=0, kp=0.005, kd=0.02)
-        self.impedance_control(self.id_list[2], angle=50, speed=1, tff=0, kp=0.005, kd=0.02)
-        # self.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
+        self.impedance_control(self.id_list[1], angle=0, speed=1, tff=0, kp=0.02, kd=0.002)
+        # self.impedance_control(self.id_list[3], angle=0, speed=1, tff=0, kp=0.005, kd=0.02)
+        # self.impedance_control(self.id_list[2], angle=50, speed=1, tff=0, kp=0.005, kd=0.02)
 
 
 class MasterRight(Master):
 
-    def __init__(self, dr):
-        super().__init__(LEADERS_R, dr)
+    def __init__(self, dr, trigger):
+        super().__init__(LEADERS_R, dr, trigger)
 
     def begin_for_operate(self):
         super().begin_for_operate()
-        self.set_handle_zero()
-        self.set_torque([0, 0.2, 0.1, 0, 0, 0])
-        self.impedance_control(2, angle=0, speed=1, tff=0, kp=0.001, kd=0.02)
-        # self.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
+        self.impedance_control(self.id_list[1], angle=0, speed=1, tff=0, kp=0.02, kd=0.002)
 
 
 class PuppetRight(Puppet):
 
-    def __init__(self, dr, gripper=None):
-        super().__init__(FOLLOWERS_R, dr, gripper)
-
-    def move_head_to_zero(self):
-        self.dr.set_angle(self.id_list[-1],  0, speed=10, param=10, mode=1)
-        self.dr.position_done(self.id_list[-1])
+    def __init__(self, dr):
+        super().__init__(FOLLOWERS_R, dr)
 
 
 class PuppetLeft(Puppet):
 
     def __init__(self, dr):
-        super().__init__(FOLLOWERS_L[:-1], dr)
-        self.gripper_id = FOLLOWERS_L[-1]
-        self.init_gripper()
+        super().__init__(FOLLOWERS_L, dr)
 
-    def init_gripper(self):
-        self.dr.set_angle(self.gripper_id, 0, speed=10, param=10, mode=1)
-        self.dr.position_done(self.gripper_id)
-        logger.debug("gripper move to zero position")
-        self.dr.set_angle_range(self.gripper_id, angle_min=FOLLOWERS_LEFT_ANGLE_MIN, angle_max=FOLLOWERS_LEFT_ANGLE_MAX)
-        logger.debug(f"gripper set angle range {(FOLLOWERS_LEFT_ANGLE_MIN, FOLLOWERS_LEFT_ANGLE_MAX)}")
 
-    def step_gripper(self, ratio: float):
-        if ratio == 0:
-            return
-        # self.step(self.gripper_id, int(10 * ratio))
-        self.dr.step_angle(self.gripper_id, int(20 * ratio), int(30 * ratio), 50, 0)
+def build_arm(dr):
+    puppet_right = PuppetRight(dr)
+    puppet_left = PuppetLeft(dr)
+
+    left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
+    master_left = MasterLeft(dr, left_trigger)
+    master_right = MasterRight(dr, right_trigger)
+    return master_left, puppet_left, master_right, puppet_right

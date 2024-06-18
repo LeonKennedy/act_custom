@@ -1,7 +1,6 @@
 import time
 from loguru import logger
 from pymodbus.client import ModbusSerialClient as ModbusClient
-from .constants import TRIGGER_LEFT_RANGE
 
 
 # 返回时间 50 旋转方向CCW

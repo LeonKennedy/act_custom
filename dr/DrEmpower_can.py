@@ -30,7 +30,7 @@ class DrEmpower_can(object):
         """
         self.com = com
         self.uart_baudrate = uart_baudrate
-        self.uart = serial.Serial(self.com, self.uart_baudrate)
+        self.uart = serial.Serial(self.com, self.uart_baudrate, timeout=0.2)
 
     """
     功能函数，用户使用
@@ -1217,7 +1217,7 @@ class DrEmpower_can(object):
                 print("angle_speed_torque_state 函数中 ID 号有误")
                 return None
         except Exception as e:
-            print("---error in angle_speed_torque_state--：", e)
+            print("2---error in angle_speed_torque_state--：", e)
             return False
 
     def angle_speed_torque_states(self, id_list=[1, 2, 3]):
@@ -1270,7 +1270,7 @@ class DrEmpower_can(object):
                         return None
                 return angle_speed_torques
         except Exception as e:
-            print("---error in angle_speed_torque_state--：", e)
+            print("1---error in angle_speed_torque_state--：", e)
             return False
 
     # 取消角度、转速、力矩实时反馈函数
@@ -1405,6 +1405,10 @@ class DrEmpower_can(object):
             id_list_sorted = sorted(id_list)
             # udata = read_data_state(n)
             udata = self.read_data_state2(n)
+            if udata is None:
+                self.clear_uart()
+                print("ERROR read error")
+                return
             angle_speed_torques = [None] * n  # 创建一个指定长度为 n 的空数组
             if READ_FLAG == 1:
                 id_num_list = []
@@ -1431,8 +1435,8 @@ class DrEmpower_can(object):
                         return None
                 return angle_speed_torques
         except Exception as e:
-            print("---error in angle_speed_torque_state--：", e)
-            return False
+            print("3---error in angle_speed_torque_state--：", e)
+            raise e
 
     # 设置当前角度为临时零点，关机重启后失效，注意该函数后不可以使用 self.save_config()，否则会改变原定的零点位置
     def set_zero_position_temp(self, id_num=0):  # 中空关节无此功能
@@ -2054,11 +2058,13 @@ class DrEmpower_can(object):
             pass
         while byte_list_head != 170:
             byte_list_head = self.uart.read(1)[0]
-        print(11)
         byte_list.append(byte_list_head)
         while self.uart.inWaiting() > 0 or len(byte_list) < (n * 16):
-            byte_list.append(list(self.uart.read(1))[0])
-        print(12)
+            d = list(self.uart.read(1))
+            if d:
+                byte_list.append(d[0])
+            else:
+                break
         if len(byte_list) == (n * 16):
             READ_FLAG = 1
             return byte_list

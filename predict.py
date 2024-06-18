@@ -156,7 +156,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
         ret, image2 = cap_right.read()
         assert ret
 
-    query_frequency = 9
+    query_frequency = 1
     num_queries = policy_config['num_queries']
 
     max_timesteps = 60  # may increase for real-world tasks

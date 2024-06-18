@@ -11,7 +11,7 @@ from tqdm import tqdm
 from einops import rearrange
 import serial
 
-from dr.gripper import Grasper
+from dr.sj_gripper import Grasper
 from my_utils import load_data  # data functions
 from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy, CNNMLPPolicy

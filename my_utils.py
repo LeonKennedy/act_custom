@@ -58,8 +58,6 @@ class EpisodicDataset(torch.utils.data.Dataset):
             padded_action = file['action'][action_cur_ts: action_cur_ts + self.fixed_length]
             is_pad = np.zeros(self.fixed_length)
 
-
-
         # new axis for different cameras
         all_cam_images = []
         for cam_name in self.camera_names:
@@ -202,6 +200,15 @@ def detach_dict(d):
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
+
+
+def get_angle_all(dr):
+    while 1:
+        angles = dr.get_angle_speed_torque_all([i for i in range(1, 27)])
+        if angles:
+            angles = [row[0] for row in angles]
+            return angles[12:18], angles[18:24], angles[24], angles[:6], angles[6:12], angles[25]
+        print("read again!!!!!!!!!!!!!!!!!!!!!!!")
 
 
 if __name__ == '__main__':
