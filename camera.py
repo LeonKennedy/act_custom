@@ -147,4 +147,5 @@ if __name__ == '__main__':
     # check_camera()
     # show()
     cg = CameraGroup()
-    test_async_with_sync()
+    # test_async_with_sync()
+    cg.show()

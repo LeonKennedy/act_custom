@@ -10,7 +10,7 @@ _wandb
 ckpt/
 run/
 output/
-
+exp_arm/
 **/.DS_Store
 
 fuse.cfg

@@ -17,8 +17,8 @@ from loguru import logger
 
 from button import Button
 from dr import DrEmpower_can
-from dr.DrRobot import PuppetRight, MasterRight, MasterLeft, PuppetLeft
-from dr.constants import COM_NAME, BAUDRATE, TRIGGER_NAME
+from dr.DrRobot import PuppetRight, MasterRight, MasterLeft, PuppetLeft, build_arm
+from dr.constants import COM_NAME, BAUDRATE, TRIGGER_NAME, BUTTOM_NAME
 from dr.dx_trigger import build_trigger
 from my_utils import get_angle_all
 from dr.sj_gripper import Grasper
@@ -58,67 +58,73 @@ def change_running_callback(e):
 
 
 def follow():
-    print("start init follow")
-    puppet_right.move_zero()
-    puppet_left.move_zero()
-    master_right.move_zero()
-    master_left.move_zero()
-    print("move to zero")
-
-    master_right.begin_for_operate()
-    master_left.begin_for_operate()
-    print("start?")
+    button = Button(BUTTOM_NAME, 9600)
+    print("start move?")
+    f = button.block_waiting_press()
+    master_left.gravity()
+    master_right.gravity()
+    print("start follow?")
     f = button.block_waiting_press()
     while 1:
-        lm, lp, rm, rp, = get_angle_all(dr)
-        logger.info(f"{lm=} {lp=} {rm} {rp}")
+        stm = time.time()
+        lp, rp, l_g, r_g = get_angle_all(dr)
+        logger.info(f"{lp=} {rp=} {l_g} {r_g}")
+
+        master_right.gravity()
+        master_left.gravity()
+        rm = master_right.read_angles()
+        lm = master_left.read_angles()
+
+        bit_width = 1 / (time.time() - stm) / 4  # 计算轨迹跟踪模式下指令发送带宽
         puppet_right.move_to2(rm, bit_width)
-        puppet_right.set_gripper_ratio(master_right.read())
+        puppet_right.set_gripper_ratio(master_right.trigger.read())
+
         puppet_left.move_to2(lm, bit_width)
-        puppet_left.set_gripper_ratio(master_left.read())
+        puppet_left.set_gripper_ratio(master_left.trigger.read())
 
         if button.is_press():
             break
-        time.sleep(1 / 20)
+    master_left.out_gravity()
+    master_right.out_gravity()
     print("end follow")
 
 
 def right_follow():
-    print("start right follow")
-    puppet_right.move_zero()
-    master_right.move_zero()
-    print("move to zero")
-
-    master_right.begin_for_operate()
-    s = input("start?(q)")
+    master_right.gravity()
+    s = input("start right?(q)")
     if s == 'q':
         return
 
     while 1:
-        lm, lp, rm, rp, = get_angle_all(dr)
-        logger.info(f"{lm=} {lp=} {rm} {rp}")
+        stm = time.time()
+        lp, rp, lg, rg = get_angle_all(dr)
+        logger.info(f"{lp=} {lg=} {rp=} {rg=}")
+        master_right.gravity()
+        rm = master_right.read_angles()
+
+        inter = (time.time() - stm)
+        bit_width = 1 / inter / 2  # 计算轨迹跟踪模式下指令发送带宽
         puppet_right.move_to2(rm, bit_width)
-        puppet_right.set_gripper_ratio(master_right.read())
-        time.sleep(1 / 20)
+        puppet_right.set_gripper_ratio(master_right.trigger.read())
+        # time.sleep(1 / 20)
 
 
 def left_follow():
-    print("start left follow")
-    puppet_left.move_zero()
-    master_left.move_zero()
-    print("move to zero")
-
-    master_left.begin_for_operate()
+    master_left.gravity()
     s = input("start?(q)")
     if s == 'q':
         return
 
     while 1:
-        master, puppet, _, _ = get_angle_all(dr)
-        logger.info(f"{master=} {puppet=}")
-        puppet_left.move_to2(master, bit_width)
-        puppet_left.set_gripper_ratio(master_left.read())
-        time.sleep(1 / 20)
+        stm = time.time()
+        lp, rp, lg, rg = get_angle_all(dr)
+        logger.info(f"{lp=} {lg=} {rp=} {rg=}")
+
+        master_left.gravity()
+        lm = master_left.read_angles()
+        bit_width = 1 / (time.time() - stm) / 2
+        puppet_left.move_to2(lm, bit_width)
+        puppet_left.set_gripper_ratio(master_left.trigger.read())
 
 
 def test_trigger():
@@ -127,7 +133,8 @@ def test_trigger():
         r = master_right.trigger.read()
         puppet_left.set_gripper_ratio(l)
         puppet_right.set_gripper_ratio(r)
-        print("left torque:", dr.get_torque(25), "right_torque:", dr.get_torque(26))
+        print("left torque:", dr.get_torque(puppet_left.gripper_id), "right torque:",
+              dr.get_torque(puppet_right.gripper_id))
         time.sleep(1 / 50)
 
 
@@ -142,26 +149,18 @@ def stop():
 
 
 if __name__ == '__main__':
-    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
+    dr = DrEmpower_can(com="COM3", uart_baudrate=BAUDRATE)
+    dr.disable_angle_speed_torque_state()
     # dr.set_torque_limit(0, 6)
-    puppet_right = PuppetRight(dr)
-    puppet_left = PuppetLeft(dr)
-    #
-    left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
-    master_left = MasterLeft(dr, left_trigger)
-    master_right = MasterRight(dr, right_trigger)
-
-    # ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
-    # master_right = MasterRight(dr)
-    # # puppet_right = PuppetRight(dr, None)
-    # puppet_right = PuppetRight(dr, Grasper(ser_port, GRIPPER_RIGHT_ID, max_v=1550))
-    # running_flag = True
+    # #
+    master_left, puppet_left, master_right, puppet_right = build_arm(dr)
+    # # ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
+    # # master_right = MasterRight(dr)
     bit_width = get_bit_width()
-    button = Button("COM6", 9600)
+    #
 
     # dr.impedance_control(2, angle=10, speed=1, tff=0, kp=0.05, kd=0.05)
     # dr.impedance_control(3, angle=-30, speed=1, tff=0, kp=0.05, kd=0.05)
     # leader_arm.release_torque_for_operate()
-    dr.disable_angle_speed_torque_state()
     # follow_arm.init_positions()
     # dr.motion_aid(id_num=id_num, angle=0, speed=5, angle_err=1, speed_err=1, torque=8)

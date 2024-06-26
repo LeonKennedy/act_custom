@@ -202,12 +202,20 @@ def set_seed(seed):
     np.random.seed(seed)
 
 
+# def get_angle_all(dr):
+#     while 1:
+#         angles = dr.get_angle_speed_torque_all([i for i in range(1, 27)])
+#         if angles:
+#             angles = [row[0] for row in angles]
+#             return angles[12:18], angles[18:24], angles[24], angles[:6], angles[6:12], angles[25]
+#         print("read again!!!!!!!!!!!!!!!!!!!!!!!")
+
 def get_angle_all(dr):
     while 1:
-        angles = dr.get_angle_speed_torque_all([i for i in range(1, 27)])
+        angles = dr.get_angle_speed_torque_all([i for i in range(1, 15)])
         if angles:
             angles = [row[0] for row in angles]
-            return angles[12:18], angles[18:24], angles[24], angles[:6], angles[6:12], angles[25]
+            return angles[7:13], angles[:6], angles[13], angles[6]
         print("read again!!!!!!!!!!!!!!!!!!!!!!!")
 
 

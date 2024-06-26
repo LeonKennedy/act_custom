@@ -1,9 +1,11 @@
+import time
 from typing import List, Optional
 from loguru import logger
 
 from .DrEmpower_can import DrEmpower_can
 from .dx_trigger import Trigger, build_trigger
-from .constants import LEADERS_R, FOLLOWERS_R, LEADERS_L, FOLLOWERS_L, GRIPPER_RANGE_MAX, TRIGGER_NAME
+from .constants import FOLLOWERS_R, FOLLOWERS_L, GRIPPER_RANGE_MAX, TRIGGER_NAME
+from . import DrRobotController_six_axes_can as arm_dr
 
 
 class Robot:
@@ -74,19 +76,48 @@ class Robot:
         return self.gripper.status
 
 
-class Master(Robot):
+class Master:
 
-    def __init__(self, id_list: List, dr: DrEmpower_can, trigger: Trigger):
-        super().__init__(id_list, dr)
+    def __init__(self, adr, arm_id: int, trigger: Trigger):
+        self.adr = adr
+        self.arm_id = arm_id
         self.trigger = trigger
 
-    def begin_for_operate(self):
-        self.set_torque_zero()
-        # self.impedance_control(2, angle=0, speed=1, tff=0, kp=0.001, kd=0.02)
-        # self.impedance_control(3, angle=0, speed=1, tff=0, kp=0.02, kd=0.02)
+    def free(self):
+        self.adr.free(self.arm_id)
 
-    def change_impedance_control(self, i: int, angle: float):
-        self.impedance_control(i, angle=angle)
+    def lock(self):
+        self.adr.lock(self.arm_id)
+
+    def gravity(self):
+        self.adr.gravity_compensation(self.arm_id, 0)
+
+    def out_gravity(self):
+        self.adr.out_of_gravity_compensation(self.arm_id)
+
+    def get_angle(self, i: int):
+        return self.adr.read_joint_motor_property(self.arm_id, i, 'dr.output_shaft.angle')
+
+    def set_angle(self, i: int, angle: float):
+        self.adr.motor_control_set_angle(id_num=self.arm_id, joint_num=i, angle=angle, speed=10, param=10, mode=1)
+
+    def step_angle(self, i: int, angle: float):
+        self.adr.motor_control_step_angle(id_num=self.arm_id, joint_num=i, angle=angle, speed=10, param=10, mode=10)
+
+    def read_angles(self):
+        servo_angle_list = []
+        for i in range(1, 7):
+            servo_angle_list.append(self.adr.read_joint_motor_property(self.arm_id, i, 'dr.output_shaft.angle'))
+        return servo_angle_list
+
+    def set_zeros(self):
+        for i in range(1, 7):
+            self.adr.motor_control_set_zero_position(self.arm_id, i)
+            time.sleep(1)
+            self.adr.motor_control_save_config(self.arm_id, i)
+            print("set", i, "done.")
+            time.sleep(2)
+        self.adr.robot_instantiation(self.arm_id)
 
 
 class Puppet(Robot):
@@ -95,7 +126,7 @@ class Puppet(Robot):
         super().__init__(id_list[:-1], dr)
         self.gripper_id = id_list[-1]
         self.gripper_current_angle = None
-        self.angle_range = (0, 0)
+        self.angle_range = (0, GRIPPER_RANGE_MAX)
         self.init_gripper()
 
     def _check_is_have(self, sid: int) -> bool:
@@ -106,11 +137,10 @@ class Puppet(Robot):
     def init_gripper(self):
         self.dr.set_angle(self.gripper_id, 150, speed=10, param=10, mode=1)
         self.gripper_current_angle = 150
-        self.dr.position_done(self.gripper_id)
+        # self.dr.position_done(self.gripper_id)
 
-        self.angle_range = (0, GRIPPER_RANGE_MAX)
-        self.dr.set_angle_range(self.gripper_id, angle_min=self.angle_range[0], angle_max=self.angle_range[1])
-        logger.debug(f"{self.__class__.__name__} set angle range {self.angle_range}")
+        # self.dr.set_angle_range(self.gripper_id, angle_min=self.angle_range[0], angle_max=self.angle_range[1])
+        # logger.debug(f"{self.__class__.__name__} set angle range {self.angle_range}")
 
         self.dr.set_torque_limit(self.gripper_id, 0.39)
 
@@ -129,35 +159,17 @@ class Puppet(Robot):
         self.dr.set_angle(self.gripper_id, angle, 10, 10, 0)
         self.gripper_current_angle = angle
 
-    # def open_gripper(self, event=None):
-    #     self.gripper.loose()
-    #
-    # def close_gripper(self, event=None):
-    #     self.gripper.clamp()
-    #
-    # def change_gripper(self, event=None):
-    #     self.gripper.change()
+    def free(self):
+        zero_torque_list = [0] * len(self.id_list)
+        self.dr.set_torques(self.id_list, zero_torque_list, mode=0)
 
 
 class MasterLeft(Master):
-    def __init__(self, dr, trigger):
-        super().__init__(LEADERS_L, dr, trigger)
-
-    def begin_for_operate(self):
-        super().begin_for_operate()
-        self.impedance_control(self.id_list[1], angle=0, speed=1, tff=0, kp=0.02, kd=0.002)
-        # self.impedance_control(self.id_list[3], angle=0, speed=1, tff=0, kp=0.005, kd=0.02)
-        # self.impedance_control(self.id_list[2], angle=50, speed=1, tff=0, kp=0.005, kd=0.02)
+    pass
 
 
 class MasterRight(Master):
-
-    def __init__(self, dr, trigger):
-        super().__init__(LEADERS_R, dr, trigger)
-
-    def begin_for_operate(self):
-        super().begin_for_operate()
-        self.impedance_control(self.id_list[1], angle=0, speed=1, tff=0, kp=0.02, kd=0.002)
+    pass
 
 
 class PuppetRight(Puppet):
@@ -172,11 +184,16 @@ class PuppetLeft(Puppet):
         super().__init__(FOLLOWERS_L, dr)
 
 
+def build_master():
+    left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
+    ml = MasterLeft(arm_dr, 2, left_trigger)
+    mr = MasterRight(arm_dr, 1, right_trigger)
+    return ml, mr
+
+
 def build_arm(dr):
     puppet_right = PuppetRight(dr)
     puppet_left = PuppetLeft(dr)
 
-    left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
-    master_left = MasterLeft(dr, left_trigger)
-    master_right = MasterRight(dr, right_trigger)
+    master_left, master_right = build_master()
     return master_left, puppet_left, master_right, puppet_right
