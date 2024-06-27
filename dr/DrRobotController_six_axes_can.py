@@ -73,13 +73,18 @@
 import sys
 import time
 import serial
+from serial.serialutil import SerialException
+
 from parameter_interface import *
 import math as cm
 import struct
 
 uart_baudrate = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
 
-uart = serial.Serial('COM5', uart_baudrate)  # 在 windows 下控制一体化关节，相应的输入连接的COM口和波特率
+try:
+    uart = serial.Serial('COM5', uart_baudrate)  # 在 windows 下控制一体化关节，相应的输入连接的COM口和波特率
+except SerialException as e:
+    print("WARNNING COM5 OPEN ERROR")
 
 READ_FLAG = 0  # 读取结果标志位
 

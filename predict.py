@@ -12,9 +12,11 @@ from einops import rearrange
 import cv2
 from scipy.ndimage import shift
 
+from camera import CameraGroup
 from constants import DT, SIM_TASK_CONFIGS
-from utils import sample_box_pose, sample_insertion_pose  # robot functions
+from dr.DrRobot import build_arm, build_puppet
 from utils import compute_dict_mean, set_seed, detach_dict  # helper functions
+from my_utils import get_angle_all
 from policy import ACTPolicy
 from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
 from visualize_episodes import save_videos
@@ -74,12 +76,9 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
+    ckpt_name = "policy_epoch_1700_seed_0.ckpt"
 
-    ckpt_name = 'policy_epoch_5900_seed_0.ckpt'
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
-
-    print()
-    exit()
 
 
 def make_policy(policy_config):
@@ -110,12 +109,6 @@ def init_camera(camera_id):
     return cap
 
 
-def get_angle_all(dr):
-    angles = dr.get_angle_speed_torque_all([i for i in range(1, 26)])
-    angles = [row[0] for row in angles]
-    return angles[12:18], angles[18:], angles[:6], angles[6:12]
-
-
 def eval_bc(config, ckpt_name, save_episode=True):
     set_seed(1000)
     ckpt_dir = config['ckpt_dir']
@@ -123,13 +116,12 @@ def eval_bc(config, ckpt_name, save_episode=True):
     policy_config = config['policy_config']
 
     # load policy and stats
-    ckpt_path = os.path.join(ckpt_dir, ckpt_name)
     policy = make_policy(policy_config)
-    loading_status = policy.load_state_dict(torch.load(ckpt_path))
+    loading_status = policy.load_state_dict(torch.load(os.path.join(ckpt_dir, ckpt_name)))
     print(loading_status)
     policy.cuda()
     policy.eval()
-    print(f'Loaded: {ckpt_path}')
+    print(f'Loaded: {ckpt_name}')
     stats_path = os.path.join(ckpt_dir, f'dataset_stats.pkl')
     with open(stats_path, 'rb') as f:
         stats = pickle.load(f)
@@ -138,29 +130,24 @@ def eval_bc(config, ckpt_name, save_episode=True):
     post_process = lambda a: a * stats['action_std'] + stats['action_mean']
 
     # load environment
-    cap_top = init_camera(CAMERA_TOP)
-    cap_right = init_camera(CAMERA_RIGHT)
+    camera = CameraGroup()
     dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-    ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
-    right_puppet = PuppetRight(dr, Grasper(ser_port, 1))
+    puppet_left, puppet_right = build_puppet(dr)
 
-    flag = input("is need move to zero?(t)")
+    flag = input("is need move to init?(t)")
     if flag == 't':
-        right_puppet.move_head_to_zero()
-        # right_puppet.move_to([0, 10, 0, 0, 0, 0])
+        puppet_left.move_to([-111.911, 3.216, -75.749, -0.786, 84.551, -8.516])
+        puppet_right.move_to([-41.404, -4.554, 92.117, 26.391, -86.174, -16.459])
 
     # clean flush
-    for i in range(5):
-        ret, image = cap_top.read()
-        assert ret
-        ret, image2 = cap_right.read()
-        assert ret
+    for i in range(3):
+        imgs = camera.read_sync()
 
     query_frequency = 1
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 60  # may increase for real-world tasks
-    all_time_actions = np.zeros([max_timesteps, max_timesteps + num_queries, 7])
+    max_timesteps = 110  # may increase for real-world tasks
+    all_time_actions = np.zeros([max_timesteps, max_timesteps + num_queries, 14])
 
     t = 0
     while True:
@@ -168,18 +155,19 @@ def eval_bc(config, ckpt_name, save_episode=True):
         start = time.time()
 
         if t % query_frequency == 0:
-            ret, image_top = cap_top.read()
-            ret, image_right = cap_right.read()
+            images = camera.read_sync()
             all_cam_images = np.stack([
-                cv2.cvtColor(image_top, cv2.COLOR_BGR2RGB),
-                cv2.cvtColor(image_right, cv2.COLOR_BGR2RGB)
+                images["TOP"],
+                images["FRONT"],
+                images["LEFT"],
+                images["RIGHT"]
             ], axis=0)
             image_data = torch.from_numpy(all_cam_images)
             image_data = torch.einsum('k h w c -> k c h w', image_data)
             image_data = image_data / 255.0
 
-            _, _, _, right_angles = get_angle_all(dr)
-            qpos = np.array(right_angles + [right_puppet.gripper_status]).astype(np.float32)
+            lp, rp, left_puppet_gripper, right_puppet_gripper = get_angle_all(dr)
+            qpos = np.array(lp + [left_puppet_gripper] + rp + [right_puppet_gripper]).astype(np.float32)
             qpos_data = torch.from_numpy(qpos).float()
             qpos_data = pre_process(qpos_data)
 
@@ -211,21 +199,22 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
         ##  DOING ROBOTS
         # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
-        # now = post_process(all_actions[0][0].cpu())
         print('当前指令:', action)
-        right_target = action[:6]
-        right_gripper = action[-1]
-        print('目标位置:', right_target, round(right_gripper))
-        # robotPuppet.move_to(action[:6], False)
-        # leftPuppet.move_to2(left_target, bit_width)
-        # leftPuppet.set_gripper(round(left_gripper))
+        left_target = action[:6]
+        left_gripper_angle = action[6]
+        right_target = action[7:13]
+        right_gripper_angle = action[13]
+
+        print('目标位置:', left_target, right_target)
 
         while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
             time.sleep(0.0001)
         a = time.time() - start
         bit_width = 1 / a / 2
-        right_puppet.move_to2(right_target, bit_width)
-        right_puppet.set_gripper(round(right_gripper))
+        puppet_left.move_to2(left_target, bit_width)
+        puppet_left.set_gripper(left_gripper_angle)
+        puppet_right.move_to2(right_target, bit_width)
+        puppet_right.set_gripper(right_gripper_angle)
 
         t += 1
         if onscreen_render:
@@ -241,7 +230,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--onscreen_render', action='store_true')
-    parser.add_argument('--ckpt_dir', action='store', type=str, help='ckpt_dir', default="ckpt2")
+    parser.add_argument('--ckpt_dir', type=str)
     parser.add_argument('--policy_class', action='store', type=str, help='policy_class, capitalize', required=True)
     parser.add_argument('--task_name', action='store', type=str, help='task_name', default="test_grap")
     parser.add_argument('--batch_size', action='store', type=int, help='batch_size', default=8)

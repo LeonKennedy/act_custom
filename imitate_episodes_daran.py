@@ -9,18 +9,11 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from tqdm import tqdm
 from einops import rearrange
-import serial
 
-from dr.sj_gripper import Grasper
 from my_utils import load_data  # data functions
 from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy, CNNMLPPolicy
-import cv2
-from dr import DrEmpower_can
-from dr.DrRobot import PuppetRight
-from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
-import time
-from PIL import Image
+
 import IPython
 
 e = IPython.embed
@@ -83,21 +76,21 @@ def main(args):
         'real_robot': not is_sim
     }
 
-    if is_eval:
-        ckpt_names = ['policy_best_runtime.ckpt']
-        ckpt_names = ['policy_epoch_4800_seed_0.ckpt']
-        results = []
-        for ckpt_name in ckpt_names:
-            success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True)
-            results.append([ckpt_name, success_rate, avg_return])
+    # if is_eval:
+    #     ckpt_names = ['policy_best_runtime.ckpt']
+    #     ckpt_names = ['policy_epoch_4800_seed_0.ckpt']
+    #     results = []
+    #     for ckpt_name in ckpt_names:
+    #         success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=True)
+    #         results.append([ckpt_name, success_rate, avg_return])
 
-        for ckpt_name, success_rate, avg_return in results:
-            print(f'{ckpt_name}: {success_rate=} {avg_return=}')
-        print()
-        exit()
+        # for ckpt_name, success_rate, avg_return in results:
+        #     print(f'{ckpt_name}: {success_rate=} {avg_return=}')
+        # print()
+        # exit()
 
     train_dataloader, val_dataloader, stats, _ = load_data(dataset_dir, camera_names, batch_size_train,
-                                                           batch_size_val)
+                                                           batch_size_val, args['chunk_size'])
 
     # save dataset stats
     if not os.path.isdir(ckpt_dir):
@@ -145,156 +138,6 @@ def get_image(ts, camera_names):
     return curr_image
 
 
-def eval_bc(config, ckpt_name, save_episode=True):
-    set_seed(0)
-    ckpt_dir = config['ckpt_dir']
-    state_dim = config['state_dim']
-    real_robot = config['real_robot']
-    policy_class = config['policy_class']
-    onscreen_render = config['onscreen_render']
-    policy_config = config['policy_config']
-    camera_names = config['camera_names']
-    max_timesteps = config['episode_len']
-    task_name = config['task_name']
-    temporal_agg = config['temporal_agg']
-    onscreen_cam = 'angle'
-    num_queries = policy_config["num_queries"]
-
-    # load policy and stats
-    ckpt_path = os.path.join(ckpt_dir, ckpt_name)
-    policy = make_policy(policy_class, policy_config)
-    loading_status = policy.load_state_dict(torch.load(ckpt_path))
-    print(loading_status)
-    policy.cuda()
-    policy.eval()
-    print(f'Loaded: {ckpt_path}')
-    stats_path = os.path.join(ckpt_dir, f'dataset_stats.pkl')
-    with open(stats_path, 'rb') as f:
-        stats = pickle.load(f)
-
-    pre_process = lambda s_qpos: (s_qpos - stats['qpos_mean']) / stats['qpos_std']
-    post_process = lambda a: a * stats['action_std'] + stats['action_mean']
-
-    cap_top = cv2.VideoCapture(CAMERA_TOP, cv2.CAP_DSHOW)  # top
-    cap_top.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap_top.set(3, IMAGE_W)
-    cap_top.set(4, IMAGE_H)
-    cap_right = cv2.VideoCapture(CAMERA_RIGHT, cv2.CAP_DSHOW)  # right
-    cap_right.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap_right.set(3, IMAGE_W)
-    cap_right.set(4, IMAGE_H)
-
-    for i in range(5):
-        ret, image = cap_top.read()
-        ret, image2 = cap_right.read()
-
-    i = 0
-
-    all_time_actions = torch.zeros([max_timesteps, max_timesteps + num_queries, 7]).cuda()
-    t = 0
-
-    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-    ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
-
-    rightPuppet = PuppetRight(dr, Grasper(ser_port, 1))
-    # rightPuppet.move_to([10, 10, 0, 0, 0, 0], wait=True)
-    # leftPuppet = Robot([7, 8, 9, 10, 11, 12], dr, gripper, 1)
-    # rightPuppet.move_to([0, 0, -30, 0, -30, 0])
-    # leftPuppet.move_to([25.397, -19.14, 30.52, -23.025, -16.829, 8.837])
-    print('move to begin')
-    time.sleep(5)
-
-    save_mode = False
-    grasped = False
-
-    while True:
-        i += 1
-        ret, image_top = cap_top.read()
-        ret, image_right = cap_right.read()
-
-        cv2.imwrite('./run/run_0_%s.jpg' % i, image_top)
-        cv2.imwrite('./run/run_1_%s.jpg' % i, image_right)
-
-        top = Image.open('./run/run_0_%s.jpg' % i)
-        right = Image.open('./run/run_1_%s.jpg' % i)
-
-        # print(np.array(image).shape)
-        all_cam_images = [np.array(top), np.array(right)]
-        all_cam_images = np.stack(all_cam_images, axis=0)
-        image_data = torch.from_numpy(all_cam_images)
-        image_data = torch.einsum('k h w c -> k c h w', image_data)
-        image_data = image_data / 255.0
-        # min_p = np.array([-20, 0, 0, -30, 50, -50])
-        # max_p = np.array([10, 100, 100, 5, 110, 100])
-        angles = dr.get_angle_speed_torque_all([i for i in range(1, 13)])
-        angles = [row[0] for row in angles]
-        right_angles = angles[6:]
-        # robot_status = robotPuppet.get_angles()
-        # jointAngle = (np.clip(np.array(robot_status['jointAngle']), min_p, max_p) - min_p) / (max_p - min_p)
-        qpos = np.array(right_angles + [rightPuppet.gripper_status]).astype(np.float32)
-        qpos_data = torch.from_numpy(qpos).float()
-        qpos_data = (qpos_data - stats["qpos_mean"]) / stats["qpos_std"]
-        start = time.time()
-        while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
-            time.sleep(0.0001)
-        a = time.time() - start
-        bit_width = 1 / a / 2
-        with torch.inference_mode():
-            start = time.time()
-            all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
-            print('模型预测耗时:', (time.time() - start))
-            # if random.random() > 0.93:
-            #     print('重置!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            #     all_time_actions = torch.zeros([max_timesteps, max_timesteps + num_queries, 7]).cuda()
-            if True:
-                all_time_actions[[t], t:t + num_queries] = all_actions
-                actions_for_curr_step = all_time_actions[:, t]
-                actions_populated = torch.all(actions_for_curr_step != 0, axis=1)
-                actions_for_curr_step = actions_for_curr_step[actions_populated]
-                k = 0.01
-                exp_weights = np.exp(-k * np.arange(len(actions_for_curr_step)))
-                exp_weights = exp_weights / exp_weights.sum()
-                exp_weights = torch.from_numpy(exp_weights).cuda().unsqueeze(dim=1)
-                raw_action = (actions_for_curr_step * exp_weights).sum(dim=0, keepdim=True)
-                raw_action = raw_action.squeeze(0).cpu().numpy()
-                action = post_process(raw_action)
-
-                # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
-                # now = post_process(all_actions[0][0].cpu())
-                print('当前指令:', action)
-                # print('平均位移:', action)
-                # left_target = action[:6]
-                # left_gripper = action[6]
-                # right_target = action[7:13]
-                # right_gripper = action[-1]
-                right_target = action[:6]
-                right_gripper = action[-1]
-
-                # action[-1] = 2 if now[-1] > 1.6 else 1
-                print('目标位置:', right_target, round(right_gripper))
-                # robotPuppet.move_to(action[:6], False)
-                # leftPuppet.move_to2(left_target, bit_width)
-                # leftPuppet.set_gripper(round(left_gripper))
-                rightPuppet.move_to2(right_target, bit_width)
-                rightPuppet.set_gripper(round(right_gripper))
-            else:
-                action = post_process(all_actions[0][0].cpu()).numpy()
-                # robot_status = robot.get_robot_status()
-                right_target = action[:6]
-                right_gripper = action[-1]
-                print('目标位置:', right_target, round(right_gripper))
-                rightPuppet.move_to2(right_target, bit_width)
-                rightPuppet.set_gripper(round(right_gripper))
-            t += 1
-
-            # robot_status = robotPuppet.get_angles()
-            # print('本次结束位置:', robot_status)
-            while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
-                time.sleep(0.0001)
-            bit_width = 1 / (time.time() - start) / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
-            print((time.time() - start), bit_width)
-
-
 def forward_pass(data, policy):
     image_data, qpos_data, action_data, is_pad = data
     # print(image_data.shape, qpos_data.shape, action_data.shape, is_pad.shape)
@@ -319,7 +162,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_4800_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_1600_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []

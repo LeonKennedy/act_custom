@@ -1,43 +1,35 @@
-import json
 import pickle
+import cv2
 
 import numpy as np
 import torch
-import os
-import h5py
-from PIL import Image
 from torch.utils.data import TensorDataset, DataLoader
-
 import IPython
 
 e = IPython.embed
 
 
 class EpisodicDataset(torch.utils.data.Dataset):
-    def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats):
+    def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats, chunk_size):
         super(EpisodicDataset).__init__()
         self.episode_ids = episode_ids
         self.camera_names = camera_names
         self.norm_stats = norm_stats
         self.is_sim = True
         self.files = pickle.load(open(dataset_dir, 'rb'))
-        self.fixed_length = 60
+        self.chunk_size = chunk_size
+        self.fixed_length = chunk_size + 10
         self.__getitem__(0)  # initialize self.is_sim
 
     def __len__(self):
         return len(self.episode_ids)
 
     def __getitem__(self, index):
-        sample_full_episode = False  # hardcode
-
         episode_id = self.episode_ids[index]
         file = self.files[episode_id]
         original_action_shape = file['action'].shape
         episode_len = original_action_shape[0]
-        if sample_full_episode:
-            start_ts = 0
-        else:
-            start_ts = np.random.choice(episode_len)
+        start_ts = np.random.choice(episode_len - self.chunk_size + 1)
         # get observation at start_ts only
         qpos = file['qpos'][start_ts]
         image_dict = dict()
@@ -61,7 +53,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
         # new axis for different cameras
         all_cam_images = []
         for cam_name in self.camera_names:
-            img = Image.open(image_dict[cam_name])
+            img = cv2.imread(image_dict[cam_name])
             all_cam_images.append(img)
         all_cam_images = np.stack(all_cam_images, axis=0)
 
@@ -112,7 +104,7 @@ def get_norm_stats(dataset_dir):
     return stats
 
 
-def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val):
+def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val, chunk_size):
     print(f'\nData from: {dataset_dir}\n')
     # obtain train test split
     files = pickle.load(open(dataset_dir, 'rb'))
@@ -127,12 +119,10 @@ def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val):
     norm_stats = get_norm_stats(dataset_dir)
 
     # construct dataset and dataloader
-    train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
-    val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True,
-                                  )
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True,
-                                )
+    train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats, chunk_size)
+    val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats, chunk_size)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val+2, pin_memory=True)
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -232,7 +222,6 @@ if __name__ == '__main__':
     # construct dataset and dataloader
     train_dataset = EpisodicDataset(train_indices, local_data, ["top", "right"], norm_stats)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,
-                                  num_workers=8, prefetch_factor=1
-                                  )
+                                  num_workers=8, prefetch_factor=1)
     for x in train_dataloader:
         print(x)

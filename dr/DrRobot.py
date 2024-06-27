@@ -191,9 +191,11 @@ def build_master():
     return ml, mr
 
 
-def build_arm(dr):
-    puppet_right = PuppetRight(dr)
-    puppet_left = PuppetLeft(dr)
+def build_puppet(dr):
+    return PuppetLeft(dr), PuppetRight(dr)
 
+
+def build_arm(dr):
+    puppet_left, puppet_right = build_puppet(dr)
     master_left, master_right = build_master()
     return master_left, puppet_left, master_right, puppet_right
