@@ -162,7 +162,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_1600_seed_0.ckpt")
+    load_ckpt(policy, "ckpt/policy_epoch_5900_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []
@@ -209,7 +209,7 @@ def train_bc(train_dataloader, val_dataloader, config):
             summary_string += f'{k}: {v.item():.4f} '
         print(summary_string)
 
-        if epoch % 100 == 0:
+        if epoch % 200 == 0:
             ckpt_path = os.path.join(ckpt_dir, f'policy_epoch_{epoch}_seed_{seed}.ckpt')
             torch.save(policy.state_dict(), ckpt_path)
             plot_history(train_history, validation_history, epoch, ckpt_dir, seed)

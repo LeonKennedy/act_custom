@@ -76,7 +76,7 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-    ckpt_name = "policy_epoch_1700_seed_0.ckpt"
+    ckpt_name = "policy_epoch_5900_seed_0.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
@@ -146,8 +146,8 @@ def eval_bc(config, ckpt_name, save_episode=True):
     query_frequency = 1
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 110  # may increase for real-world tasks
-    all_time_actions = np.zeros([max_timesteps, max_timesteps + num_queries, 14])
+    max_timesteps = 40  # may increase for real-world tasks
+    all_time_actions = np.zeros([max_timesteps, num_queries, 14])
 
     t = 0
     while True:
@@ -179,11 +179,11 @@ def eval_bc(config, ckpt_name, save_episode=True):
         # ACTION CHUNK
 
         all_time_actions[:, :-1] = all_time_actions[:, 1:]
-        if t < num_queries:
+        if t < max_timesteps:
             all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
         else:
             all_time_actions[:-1] = all_time_actions[1:]
-            all_time_actions[num_queries, :num_queries] = all_actions.cpu().numpy()
+            all_time_actions[max_timesteps-1, :num_queries] = all_actions.cpu().numpy()
 
         actions_for_curr_step = all_time_actions[:, 0]
         actions_populated = np.all(actions_for_curr_step != 0, axis=1)
