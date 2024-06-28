@@ -9,7 +9,7 @@ import random
 def get_all_file():
     all_file = []
 
-    for root, dirs, files in os.walk(os.path.join(data_path, "06_26"), topdown=False):
+    for root, dirs, files in os.walk(os.path.join(data_path, "06_28"), topdown=False):
         for name in files:
             if not name.endswith('.pkl'):
                 continue
