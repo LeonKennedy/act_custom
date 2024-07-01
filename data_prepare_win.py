@@ -9,7 +9,7 @@ import random
 def get_all_file():
     all_file = []
 
-    for root, dirs, files in os.walk(os.path.join(data_path, "06_28"), topdown=False):
+    for root, dirs, files in os.walk(os.path.join(data_path, "07_01"), topdown=False):
         for name in files:
             if not name.endswith('.pkl'):
                 continue
@@ -21,7 +21,7 @@ def get_all_file():
 
 def process():
     epsoides = []
-    min_length = 100
+    min_length = 40
     step = 1
 
     # min_p = np.array([-30, 0, 0, -30, 20, 0])
@@ -30,7 +30,6 @@ def process():
     # max_p = 1350
     for file in get_all_file():
         datas = pickle.load(open(file, 'rb'))
-        print(file, len(datas))
         epsoide = {'name': file.split("/")[-1].split(".")[0],
                    'image': {
                        'left': [],
@@ -43,6 +42,7 @@ def process():
                    }
         if (len(datas)) < min_length:
             continue
+        print(file, len(datas))
         for j in range(len(datas)):
             i = j
             data = datas[i]

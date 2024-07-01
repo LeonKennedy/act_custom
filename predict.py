@@ -76,7 +76,7 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-    ckpt_name = "policy_epoch_5900_seed_0.ckpt"
+    ckpt_name = "policy_epoch_44400_seed_0.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
@@ -139,6 +139,8 @@ def eval_bc(config, ckpt_name, save_episode=True):
         puppet_left.move_to([-111.911, 3.216, -75.749, -0.786, 84.551, -8.516])
         puppet_right.move_to([-41.404, -4.554, 92.117, 26.391, -86.174, -16.459])
 
+    time.sleep(2)
+
     # clean flush
     for i in range(3):
         imgs = camera.read_sync()
@@ -146,7 +148,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
     query_frequency = 1
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 40  # may increase for real-world tasks
+    max_timesteps = 20  # may increase for real-world tasks
     all_time_actions = np.zeros([max_timesteps, num_queries, 14])
 
     t = 0
