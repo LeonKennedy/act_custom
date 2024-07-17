@@ -109,9 +109,10 @@ def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val, chunk
     # obtain train test split
     files = pickle.load(open(dataset_dir, 'rb'))
     num_episodes = len(files)
-    train_ratio = 0.8
+    train_ratio = 0.9
     shuffled_indices = np.random.permutation(num_episodes)
-    train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
+    # train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
+    train_indices = shuffled_indices
     val_indices = shuffled_indices[int(train_ratio * num_episodes):]
     print("train data length:", len(train_indices), "val data length:", len(val_indices))
 
@@ -200,13 +201,7 @@ def set_seed(seed):
 #             return angles[12:18], angles[18:24], angles[24], angles[:6], angles[6:12], angles[25]
 #         print("read again!!!!!!!!!!!!!!!!!!!!!!!")
 
-def get_angle_all(dr):
-    while 1:
-        angles = dr.get_angle_speed_torque_all([i for i in range(1, 15)])
-        if angles:
-            angles = [row[0] for row in angles]
-            return angles[7:13], angles[:6], angles[13], angles[6]
-        print("read again!!!!!!!!!!!!!!!!!!!!!!!")
+
 
 
 if __name__ == '__main__':

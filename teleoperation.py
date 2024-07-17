@@ -17,11 +17,8 @@ from loguru import logger
 
 from button import Button
 from dr import DrEmpower_can
-from dr.DrRobot import PuppetRight, MasterRight, MasterLeft, PuppetLeft, build_arm
+from dr.DrRobot import PuppetRight, MasterRight, MasterLeft, PuppetLeft, build_arm, get_all_angle
 from dr.constants import COM_NAME, BAUDRATE, TRIGGER_NAME, BUTTOM_NAME
-from dr.dx_trigger import build_trigger
-from my_utils import get_angle_all
-from dr.sj_gripper import Grasper
 
 
 def get_bit_width():
@@ -89,24 +86,28 @@ def follow():
     print("end follow")
 
 
+def init_right_arm():
+    master_right.move_to([-80, -10, 30, -22, -86, 0], wait=True)
+    puppet_right.move_to([-80, -10, 30, -22, -86, 0])
+
+
 def right_follow():
-    master_right.gravity()
+    master_right.free()
     s = input("start right?(q)")
     if s == 'q':
         return
 
     while 1:
         stm = time.time()
-        lp, rp, lg, rg = get_angle_all(dr)
-        logger.info(f"{lp=} {lg=} {rp=} {rg=}")
-        master_right.gravity()
-        rm = master_right.read_angles()
+        _, _, rm, rp = get_all_angle(dr)
+        logger.info(f"master {rm} puppet {rp}")
 
         inter = (time.time() - stm)
         bit_width = 1 / inter / 2  # 计算轨迹跟踪模式下指令发送带宽
-        puppet_right.move_to2(rm, bit_width)
-        puppet_right.set_gripper_ratio(master_right.trigger.read())
-        # time.sleep(1 / 20)
+        print(bit_width)
+        puppet_right.move_to2(rm, 10)
+        # puppet_right.set_gripper_ratio(master_right.trigger.read())
+        time.sleep(1 / 20)
 
 
 def left_follow():
@@ -149,11 +150,11 @@ def stop():
 
 
 if __name__ == '__main__':
-    dr = DrEmpower_can(com="COM3", uart_baudrate=BAUDRATE)
-    dr.disable_angle_speed_torque_state()
+    dr = DrEmpower_can(com="COM5", uart_baudrate=BAUDRATE)
+    # dr.disable_angle_speed_torque_state()
     # dr.set_torque_limit(0, 6)
-    # #
-    master_left, puppet_left, master_right, puppet_right = build_arm(dr)
+
+    _, _, master_right, puppet_right = build_arm(dr)
     # # ser_port = serial.Serial(GRASPER_NAME, BAUDRATE)
     # # master_right = MasterRight(dr)
     bit_width = get_bit_width()

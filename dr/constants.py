@@ -10,23 +10,19 @@ if sys.platform == "darwin":
     CAMERA_NAME = {"TOP": 1, "RIGHT": 0}
 else:
     COM_NAME = "COM3"
-    GRASPER_NAME = 'COM8'
+    GRASPER_NAME = 'COM12'
     CAMERA_TOP = 1
     CAMERA_RIGHT = 0
     TRIGGER_NAME = "COM10"
-    CAMERA_NAME = {"TOP": 1, "RIGHT": 0, "FRONT": 2, "LEFT": 3}
-    BUTTOM_NAME = "COM11"
+    CAMERA_NAME = {"TOP": 1, "RIGHT": 3, "FRONT": 0, "LEFT": 2}
+    BUTTON_NAME = "COM12"
 
 BAUDRATE = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
 
-# LEADERS_R = [1, 2, 3, 4, 5, 6]
-# LEADERS_L = [13, 14, 15, 16, 17, 18]
-FOLLOWERS_R = [1, 2, 3, 4, 5, 6, 7]
-FOLLOWERS_L = [8, 9, 10, 11, 12, 13, 14]
-
-# GRIPPER_RIGHT_ID = 1
-# TRIGGER_LEFT_RANGE = (186, 862)
-GRIPPER_RANGE_MAX = 210
+LEADERS_R = [1, 2, 3, 4, 5, 6]
+LEADERS_L = []
+FOLLOWERS_R = [7, 8, 9, 10, 11, 12]
+FOLLOWERS_L = []
 
 IMAGE_W = 640
 IMAGE_H = 360

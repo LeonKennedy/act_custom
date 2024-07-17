@@ -26,7 +26,7 @@ def show(episodes):
         print("right master", episode["right_master"], "right puppet", episode["right_puppet"])
         print("trigger", episode["left_trigger"], episode["right_trigger"])
         print()
-        key = cv2.waitKey(10)
+        key = cv2.waitKey(50)
         if key == ord('q'):
             break
 

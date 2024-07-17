@@ -97,7 +97,7 @@ class Dynamixel:
         return (self.read_position(motor_id) / 4096) * 2 * math.pi
 
 
-RANGE = {2: (1700, 2248), 4: (1700, 2200)}
+RANGE = {2: (1700, 1700+600), 4: (1700, 1700+600)}
 
 
 class Trigger(Dynamixel):

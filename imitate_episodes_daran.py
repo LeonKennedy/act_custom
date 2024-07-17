@@ -20,9 +20,8 @@ e = IPython.embed
 
 
 def main(args):
-    set_seed(1)
+    set_seed(args['seed'])
     # command line parameters
-    is_eval = args['eval']
     ckpt_dir = args['ckpt_dir']
     policy_class = args['policy_class']
     onscreen_render = args['onscreen_render']

@@ -3,9 +3,11 @@ from typing import List, Optional
 from loguru import logger
 
 from .DrEmpower_can import DrEmpower_can
-from .dx_trigger import Trigger, build_trigger
-from .constants import FOLLOWERS_R, FOLLOWERS_L, GRIPPER_RANGE_MAX, TRIGGER_NAME
-from . import DrRobotController_six_axes_can as arm_dr
+from .trigger.dx_trigger import Trigger, build_trigger
+from .constants import FOLLOWERS_R, FOLLOWERS_L, TRIGGER_NAME, LEADERS_R, LEADERS_L
+
+
+# from . import DrRobotController_six_axes_can as arm_dr
 
 
 class Robot:
@@ -47,7 +49,7 @@ class Robot:
                            mode=1)
 
     def move_to(self, angle_list, wait=False):
-        print('move_to:', angle_list)
+        print('servo', self.id_list, 'move_to:', angle_list)
         self.dr.set_angles(id_list=self.id_list, angle_list=angle_list, speed=10, param=10,
                            mode=1)  # 先控制关节已梯形估计模型平缓运动到曲线起点
         if wait:
@@ -61,7 +63,7 @@ class Robot:
             self.dr.reboot(i)
         logger.debug(f"{self.__class__.__name__} {self.id_list} reboot")
 
-    def set_torque_zero(self):
+    def free(self):
         self.set_torque([0, 0, 0, 0, 0, 0])
 
     def set_zeros(self):
@@ -71,12 +73,8 @@ class Robot:
 
     # ---         gripper   --
 
-    @property
-    def gripper_status(self):
-        return self.gripper.status
 
-
-class Master:
+class ModuleMaster:
 
     def __init__(self, adr, arm_id: int, trigger: Trigger):
         self.adr = adr
@@ -123,16 +121,17 @@ class Master:
 class Puppet(Robot):
 
     def __init__(self, id_list: List, dr: DrEmpower_can):
-        super().__init__(id_list[:-1], dr)
-        self.gripper_id = id_list[-1]
+        super().__init__(id_list, dr)
+        # self.gripper_id = id_list[-1]
         self.gripper_current_angle = None
-        self.angle_range = (0, GRIPPER_RANGE_MAX)
-        self.init_gripper()
+        # self.angle_range = (0, GRIPPER_RANGE_MAX)
+        # self.init_gripper()
 
     def _check_is_have(self, sid: int) -> bool:
-        if sid == self.gripper_id:
-            return True
-        return super()._check_is_have(sid)
+        return True
+        # if sid == self.gripper_id:
+        #     return True
+        # return super()._check_is_have(sid)
 
     def init_gripper(self):
         self.dr.set_angle(self.gripper_id, 150, speed=10, param=10, mode=1)
@@ -163,13 +162,24 @@ class Puppet(Robot):
         zero_torque_list = [0] * len(self.id_list)
         self.dr.set_torques(self.id_list, zero_torque_list, mode=0)
 
+    @property
+    def gripper_status(self):
+        return self.gripper.status
+
+
+class Master(Robot):
+
+    def __init__(self, id_list: List, dr: DrEmpower_can):
+        super().__init__(id_list, dr)
+
 
 class MasterLeft(Master):
     pass
 
 
 class MasterRight(Master):
-    pass
+    def __init__(self, dr: DrEmpower_can):
+        super().__init__(LEADERS_R, dr)
 
 
 class PuppetRight(Puppet):
@@ -195,7 +205,46 @@ def build_puppet(dr):
     return PuppetLeft(dr), PuppetRight(dr)
 
 
+def build_left(dr):
+    pass
+
+
+def build_right(dr):
+    mr = MasterRight(dr)
+    pr = PuppetRight(dr)
+    return mr, pr
+
+
 def build_arm(dr):
-    puppet_left, puppet_right = build_puppet(dr)
-    master_left, master_right = build_master()
-    return master_left, puppet_left, master_right, puppet_right
+    master_right, puppet_right = build_right(dr)
+    # puppet_left, puppet_right = build_puppet(dr)
+    # master_left, master_right = build_master()
+    return None, None, master_right, puppet_right
+
+
+def get_all_angle(dr):
+    servo_list = LEADERS_L + LEADERS_R + FOLLOWERS_L + FOLLOWERS_R
+    sorted_servos = sorted(servo_list)
+    while 1:
+        state = dr.get_angle_speed_torque_all(sorted_servos)
+        if state is None:
+            logger.warning("read state error!")
+            time.sleep(0.001)
+            continue
+        angle = [s[0] for s in state]
+        if state:
+            master_left = _get_value_by_index(angle, LEADERS_L)
+            master_right = _get_value_by_index(angle, LEADERS_R)
+            puppet_left = _get_value_by_index(angle, FOLLOWERS_L)
+            puppet_right = _get_value_by_index(angle, FOLLOWERS_R)
+            return master_left, puppet_left, master_right, puppet_right
+
+
+def _get_value_by_index(angle, ind) -> List:
+    out = []
+    for i in ind:
+        try:
+            out.append(angle[i - 1])
+        except IndexError as e:
+            continue
+    return out

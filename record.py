@@ -12,12 +12,10 @@ import os
 import pickle
 import time
 from datetime import datetime
-import serial
-import cv2
 
 from dr import DrEmpower_can
-from dr.constants import FPS, BAUDRATE, GRASPER_NAME, IMAGE_H, IMAGE_W, COM_NAME, CAMERA_TOP, CAMERA_RIGHT, BUTTOM_NAME
-from dr.DrRobot import PuppetRight, MasterRight, PuppetLeft, MasterLeft, build_arm
+from dr.constants import FPS, BAUDRATE, COM_NAME, BUTTOM_NAME
+from dr.DrRobot import build_arm
 from button import Button
 from camera import CameraGroup
 from my_utils import get_angle_all

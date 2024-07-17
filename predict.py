@@ -76,7 +76,8 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-    ckpt_name = "policy_epoch_44400_seed_0.ckpt"
+    ckpt_name = "policy_best_runtime.ckpt"
+    # ckpt_name = "policy_epoch_4200_seed_0.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
@@ -110,7 +111,7 @@ def init_camera(camera_id):
 
 
 def eval_bc(config, ckpt_name, save_episode=True):
-    set_seed(1000)
+    set_seed(0)
     ckpt_dir = config['ckpt_dir']
     onscreen_render = config['onscreen_render']
     policy_config = config['policy_config']
@@ -136,8 +137,8 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     flag = input("is need move to init?(t)")
     if flag == 't':
-        puppet_left.move_to([-111.911, 3.216, -75.749, -0.786, 84.551, -8.516])
-        puppet_right.move_to([-41.404, -4.554, 92.117, 26.391, -86.174, -16.459])
+        puppet_left.move_to([-125.776, 20.996, -50.522, 8.501, 92.796, -40.213])
+        puppet_right.move_to([-50.962, -18.231, 47.637, -12.737, -95.001, 24.392])
 
     time.sleep(2)
 
@@ -148,7 +149,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
     query_frequency = 1
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 20  # may increase for real-world tasks
+    max_timesteps = 40  # may increase for real-world tasks
     all_time_actions = np.zeros([max_timesteps, num_queries, 14])
 
     t = 0
