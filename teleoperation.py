@@ -18,7 +18,7 @@ from loguru import logger
 from button import Button
 from dr import DrEmpower_can
 from dr.DrRobot import PuppetRight, MasterRight, MasterLeft, PuppetLeft, build_arm, get_all_angle
-from dr.constants import COM_NAME, BAUDRATE, TRIGGER_NAME, BUTTOM_NAME
+from dr.constants import COM_NAME, BAUDRATE, TRIGGER_NAME, BUTTON_NAME
 
 
 def get_bit_width():

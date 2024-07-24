@@ -1,2 +1,2 @@
-from .servo import build_left, build_right, Master, Puppet
+from .servo import build_master_and_puppet, Master, Puppet
 # from .arm_robot import arm_robot as ArmRobot

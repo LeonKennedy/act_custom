@@ -78,11 +78,11 @@ arm_six_axes_G_5 = 0.2369  # 主臂关节6，单位kg
 arm_six_axes_G_p = 0.0723  # 负载重量，单位kg，所有重量单位皆为kg
 
 arm_six_axes_joints_torque_factor_1 = 0.1  # 主臂关节1力矩修正系数
-arm_six_axes_joints_torque_factor_2 = 0.52  # 主臂关节2力矩修正系数
+arm_six_axes_joints_torque_factor_2 = 0.62  # 主臂关节2力矩修正系数
 arm_six_axes_joints_torque_factor_3 = 0.4  # 主臂关节3力矩修正系数
 arm_six_axes_joints_torque_factor_4 = 0.4  # 主臂关节4力矩修正系数
-arm_six_axes_joints_torque_factor_5 = 0.2  # 主臂关节5力矩修正系数
-arm_six_axes_joints_torque_factor_6 = 0.1  # 主臂关节6力矩修正系数
+arm_six_axes_joints_torque_factor_5 = 0.1  # 主臂关节5力矩修正系数
+arm_six_axes_joints_torque_factor_6 = 0.0  # 主臂关节6力矩修正系数
 
 COM_LEFT = 'COM3'
 COM_RIGHT = 'COM5'
@@ -102,30 +102,11 @@ def init_dr(com: str) -> robot.arm_robot:
     return dr
 
 
-def build_left() -> Tuple[Master, Puppet]:
-    dr = init_dr(COM_LEFT)
-    master = Master(dr, [1, 2, 3, 4, 5, 6])
-    puppet = Puppet(dr, [7, 8, 9, 10, 11, 12])
+def build_master_and_puppet(com_name: str, master_ids: List[int], puppet_ids: List[int]) -> Tuple[Master, Puppet]:
+    dr = init_dr(com_name)
+    master = Master(dr, master_ids)
+    puppet = Puppet(dr, puppet_ids)
     return master, puppet
-
-
-def build_right() -> Tuple[Master, Puppet]:
-    dr = init_dr(COM_RIGHT)
-    master = Master(dr, [1, 2, 3, 4, 5, 6])
-    puppet = Puppet(dr, [7, 8, 9, 10, 11, 12])
-    return master, puppet
-
-
-def build_master():
-    pass
-
-
-def build_puppet():
-    pass
-
-
-def build_arm():
-    pass
 
 
 if __name__ == '__main__':

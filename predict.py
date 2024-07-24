@@ -16,12 +16,12 @@ from camera import CameraGroup
 from constants import DT, SIM_TASK_CONFIGS
 from dr.DrRobot import build_arm, build_puppet
 from utils import compute_dict_mean, set_seed, detach_dict  # helper functions
-from my_utils import get_angle_all
+# from my_utils import get_angle_all
 from policy import ACTPolicy
 from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
 from visualize_episodes import save_videos
 from PIL import Image
-from dr import DrEmpower_can, PuppetRight, Grasper
+# from dr import DrEmpower_can, PuppetRight, GRASPER_NAME
 
 import IPython
 

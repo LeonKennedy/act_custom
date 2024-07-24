@@ -6,9 +6,10 @@ import sys
 
 from loguru import logger
 
-from .new_arm import build_left, build_right, Puppet, Master
+from .new_arm import build_master_and_puppet, Puppet, Master
 from .trigger import build_trigger, Trigger
 from .grasper import Grasper, build_grasper
+from .constants import COM_LEFT, COM_RIGHT, LEADERS_L, LEADERS_R, FOLLOWERS_L, FOLLOWERS_R
 
 
 class Arm:
@@ -32,27 +33,47 @@ class Arm:
             else:
                 n += 1
                 time.sleep(0.002)
-                logger.warning(f"read state empty times: {n}")
+                # logger.warning(f"{self.__class__} read state empty times: {n}")
 
     def follow(self, bit_width: float = 15):
         master_angles, puppet_angles = self.get_all_angle()
         self.gravity(master_angles)
         self.puppet.move_to(master_angles, bit_width)
-        self.grasper.set_angle_by_ratio(self.trigger.read())
+        grasper_angle = self.grasper.read_angle()
+        trigger_angle = self.grasper.ratio_to_angle(self.trigger.read())
+        self.grasper.set_angle(trigger_angle)
+        return master_angles, trigger_angle, puppet_angles, grasper_angle
 
     def gravity(self, angles):
         sys.stdout = self.tmp_buffer
         self.dr.gravity_compensation(pay_load=0, F=[0, 0, 0], angle_list=angles)
         sys.stdout = sys.__stdout__
 
+    def set_angle(self, sid: int, angle: float):
+        self.dr.set_angle(sid, angle, 10, 10, 1)
+
+    def step(self, sid: int, angle: float):
+        self.dr.step_angle(sid, angle, 10, 10, 1)
+
+    def set_zero_position(self, sid):
+        self.dr.set_zero_position(sid)
+
+    def lock(self):
+        master_angles, puppet_angles = self.get_all_angle()
+        self.master.move_to1(master_angles)
+
     @abc.abstractmethod
     def move_start_position(self):
         pass
 
+    def clear_uart(self):
+        self.dr.uart.flushInput()
+
 
 class ArmLeft(Arm):
     def __init__(self, trigger, grasper):
-        m, p = build_left()
+        print("init left arm")
+        m, p = build_master_and_puppet(COM_LEFT, master_ids=LEADERS_L, puppet_ids=FOLLOWERS_L)
         super().__init__(m, p, trigger, grasper)
 
     def move_start_position(self):
@@ -64,11 +85,12 @@ class ArmLeft(Arm):
 class ArmRight(Arm):
 
     def __init__(self, trigger, grasper):
-        m, p = build_right()
+        print("init right arm")
+        m, p = build_master_and_puppet(COM_RIGHT, master_ids=LEADERS_R, puppet_ids=FOLLOWERS_R)
         super().__init__(m, p, trigger, grasper)
 
     def move_start_position(self):
-        start = [-80, -10, 30, -22, -86, 0]
+        start = [0, 0, 90, 0, -86, 0]
         self.master.move_to1(start)
         time.sleep(2)
         self.puppet.move_to1(start)

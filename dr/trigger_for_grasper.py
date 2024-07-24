@@ -5,8 +5,6 @@ from grasper import build_grasper
 
 
 def run():
-    lf, rf = build_grasper()
-    l, r = build_trigger("COM10")
     while 1:
         left_angle_ratio_of_trigger = l.read()
         right_angle_ratio_of_trigger = r.read()
@@ -17,4 +15,5 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    lf, rf = build_grasper()
+    l, r = build_trigger("COM10")

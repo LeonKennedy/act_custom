@@ -9,20 +9,17 @@ if sys.platform == "darwin":
     GRASPER_NAME = '/dev/tty.wchusbserial14330'
     CAMERA_NAME = {"TOP": 1, "RIGHT": 0}
 else:
-    COM_NAME = "COM3"
+    COM_LEFT = "COM3"
+    COM_RIGHT = "COM5"
     GRASPER_NAME = 'COM12'
-    CAMERA_TOP = 1
-    CAMERA_RIGHT = 0
     TRIGGER_NAME = "COM10"
     CAMERA_NAME = {"TOP": 1, "RIGHT": 3, "FRONT": 0, "LEFT": 2}
     BUTTON_NAME = "COM12"
 
 BAUDRATE = 115200  # 串口波特率，与CAN模块的串口波特率一致，（出厂默认为 115200，最高460800）
 
-LEADERS_R = [1, 2, 3, 4, 5, 6]
-LEADERS_L = []
-FOLLOWERS_R = [7, 8, 9, 10, 11, 12]
-FOLLOWERS_L = []
+LEADERS_R = LEADERS_L = [1, 2, 3, 4, 5, 6]
+FOLLOWERS_R = FOLLOWERS_L = [7, 8, 9, 10, 11, 12]
 
 IMAGE_W = 640
 IMAGE_H = 360

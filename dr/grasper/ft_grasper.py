@@ -43,7 +43,7 @@ class Feite:
 
 
 class Grasper(Feite):
-    def set_angle(self, angle: float, speed: int = 4000, acc: int = 50):
+    def set_angle(self, angle: float, speed: int = 4000, acc: int = 80):
         limit_angle = max(min(self.MAX_ANGLE, angle), self.MIN_ANGLE)
         scs_comm_result, scs_error = self.packet_handler.WritePosEx(self.sid, int(limit_angle), speed, acc=acc)
         if scs_comm_result != COMM_SUCCESS:
@@ -51,9 +51,17 @@ class Grasper(Feite):
         elif scs_error != 0:
             print("%s" % self.packet_handler.getRxPacketError(scs_error))
 
+    def move_max_angle(self):
+        self.set_angle(self.MAX_ANGLE)
+
+    def move_min_angle(self):
+        self.set_angle(self.MIN_ANGLE)
+
+    def ratio_to_angle(self, ratio: float) -> float:
+        return (self.MAX_ANGLE - self.MIN_ANGLE) * ratio
+
     def set_angle_by_ratio(self, ratio: float):
-        angle = (self.MAX_ANGLE - self.MIN_ANGLE) * ratio
-        self.set_angle(angle)
+        self.set_angle(self.ratio_to_angle(ratio))
 
     def set_torque_limit(self, val: int):
         scs_comm_result, scs_error = self.packet_handler.setTorqueLimit(self.sid, val)
