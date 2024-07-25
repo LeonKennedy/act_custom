@@ -1,4 +1,5 @@
 import msvcrt
+from typing import Dict
 
 from .scservo_sdk import PortHandler, sms_sts, COMM_SUCCESS
 
@@ -8,8 +9,6 @@ def getch():
 
 
 class Feite:
-    MAX_ANGLE = 3400
-    MIN_ANGLE = 0
 
     def __init__(self, sid: int, port_handler: PortHandler):
         self.sid = sid
@@ -43,6 +42,13 @@ class Feite:
 
 
 class Grasper(Feite):
+    MAX_ANGLE = 3400
+    MIN_ANGLE = 0
+
+    def __init__(self, sid: int, port_handler: PortHandler, config: Dict):
+        super().__init__(sid, port_handler)
+        self.MIN_ANGLE, self.MAX_ANGLE = config
+
     def set_angle(self, angle: float, speed: int = 4000, acc: int = 80):
         limit_angle = max(min(self.MAX_ANGLE, angle), self.MIN_ANGLE)
         scs_comm_result, scs_error = self.packet_handler.WritePosEx(self.sid, int(limit_angle), speed, acc=acc)
@@ -58,7 +64,7 @@ class Grasper(Feite):
         self.set_angle(self.MIN_ANGLE)
 
     def ratio_to_angle(self, ratio: float) -> float:
-        return (self.MAX_ANGLE - self.MIN_ANGLE) * ratio
+        return (self.MAX_ANGLE - self.MIN_ANGLE) * ratio + self.MIN_ANGLE
 
     def set_angle_by_ratio(self, ratio: float):
         self.set_angle(self.ratio_to_angle(ratio))
@@ -71,6 +77,6 @@ class Grasper(Feite):
             print("%s" % self.packet_handler.getRxPacketError(scs_error))
 
 
-def build_grasper():
+def build_grasper(config: Dict):
     port_handler = PortHandler("COM11", 1_000_000)
-    return Grasper(2, port_handler), Grasper(1, port_handler)
+    return Grasper(2, port_handler, config.get("left", {})), Grasper(1, port_handler, config.get("left", {}))

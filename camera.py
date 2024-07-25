@@ -95,6 +95,7 @@ class CameraGroup:
 
     def __init__(self):
         self.caps = {name: _init_camera(i) for name, i in CAMERA_NAME.items()}
+        self.image_size = (IMAGE_H, IMAGE_W, 3)
         # self.tasks = {name: Thread(target=cap.read) for name, cap in self.caps.items()}
 
     def read_async(self) -> Dict[str, np.ndarray]:
@@ -148,4 +149,5 @@ if __name__ == '__main__':
     # show()
     cg = CameraGroup()
     # test_async_with_sync()
-    cg.show()
+    # cg.show()
+    a = cg.read_sync()

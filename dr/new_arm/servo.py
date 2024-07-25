@@ -78,9 +78,9 @@ arm_six_axes_G_5 = 0.2369  # 主臂关节6，单位kg
 arm_six_axes_G_p = 0.0723  # 负载重量，单位kg，所有重量单位皆为kg
 
 arm_six_axes_joints_torque_factor_1 = 0.1  # 主臂关节1力矩修正系数
-arm_six_axes_joints_torque_factor_2 = 0.62  # 主臂关节2力矩修正系数
-arm_six_axes_joints_torque_factor_3 = 0.4  # 主臂关节3力矩修正系数
-arm_six_axes_joints_torque_factor_4 = 0.4  # 主臂关节4力矩修正系数
+arm_six_axes_joints_torque_factor_2 = 0.75  # 主臂关节2力矩修正系数
+arm_six_axes_joints_torque_factor_3 = 0.45  # 主臂关节3力矩修正系数
+arm_six_axes_joints_torque_factor_4 = 0.2  # 主臂关节4力矩修正系数
 arm_six_axes_joints_torque_factor_5 = 0.1  # 主臂关节5力矩修正系数
 arm_six_axes_joints_torque_factor_6 = 0.0  # 主臂关节6力矩修正系数
 

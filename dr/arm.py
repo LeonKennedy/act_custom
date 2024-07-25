@@ -1,7 +1,7 @@
 import abc
 import time
 from io import StringIO
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 import sys
 
 from loguru import logger
@@ -60,7 +60,8 @@ class Arm:
 
     def lock(self):
         master_angles, puppet_angles = self.get_all_angle()
-        self.master.move_to1(master_angles)
+        # last not lock
+        self.dr.set_angles(self.master.id_list[:-1], master_angles[:-1], 10, 10, 1)
 
     @abc.abstractmethod
     def move_start_position(self):
@@ -77,9 +78,10 @@ class ArmLeft(Arm):
         super().__init__(m, p, trigger, grasper)
 
     def move_start_position(self):
-        self.master.move_to1([0, 20, -30, -20, 90, 0])
+        start = [0, 0, -30, -20, 90, 0]
+        self.master.move_to1(start)
         time.sleep(2)
-        self.puppet.move_to1([0, 20, -30, -20, 90, 0])
+        self.puppet.move_to1(start)
 
 
 class ArmRight(Arm):
@@ -96,9 +98,9 @@ class ArmRight(Arm):
         self.puppet.move_to1(start)
 
 
-def build_two_arm() -> Tuple[Arm, Arm]:
+def build_two_arm(config: Dict) -> Tuple[Arm, Arm]:
     left_trigger, right_trigger = build_trigger()
-    left_grasper, right_grasper = build_grasper()
+    left_grasper, right_grasper = build_grasper(config.get("grasper", {}))
     left_arm = ArmLeft(left_trigger, left_grasper)
     right_arm = ArmRight(right_trigger, right_grasper)
     return left_arm, right_arm
