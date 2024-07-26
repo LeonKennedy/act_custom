@@ -9,7 +9,7 @@ from loguru import logger
 from .new_arm import build_master_and_puppet, Puppet, Master
 from .trigger import build_trigger, Trigger
 from .grasper import Grasper, build_grasper
-from .constants import COM_LEFT, COM_RIGHT, LEADERS_L, LEADERS_R, FOLLOWERS_L, FOLLOWERS_R
+from .constants import COM_LEFT, COM_RIGHT, LEADERS_L, LEADERS_R, FOLLOWERS_L, FOLLOWERS_R, TRIGGER_NAME
 
 
 class Arm:
@@ -99,7 +99,7 @@ class ArmRight(Arm):
 
 
 def build_two_arm(config: Dict) -> Tuple[Arm, Arm]:
-    left_trigger, right_trigger = build_trigger()
+    left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
     left_grasper, right_grasper = build_grasper(config.get("grasper", {}))
     left_arm = ArmLeft(left_trigger, left_grasper)
     right_arm = ArmRight(right_trigger, right_grasper)

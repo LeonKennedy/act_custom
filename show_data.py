@@ -15,16 +15,17 @@ def show_image(name, bytes):
 def combine_image(images):
     a = np.concatenate([images["TOP"], images["FRONT"]])
     b = np.concatenate([images["LEFT"], images["RIGHT"]])
-    return np.concatenate([a, b], axis=1)
+    return a, b
 
 
 def show(episodes):
     for episode in episodes:
-        img = combine_image(episode["camera"])
-        cv2.imshow("top", img)
+        img1, img2 = combine_image(episode["camera"])
+        cv2.imshow("top-front", img1)
+        cv2.imshow("arm", img2)
         print("left master", episode["left_master"], "left puppet", episode["left_puppet"])
         print("right master", episode["right_master"], "right puppet", episode["right_puppet"])
-        print("trigger", episode["left_trigger"], episode["right_trigger"])
+        # print("trigger", episode["left_trigger"], episode["right_trigger"])
         print()
         key = cv2.waitKey(50)
         if key == ord('q'):

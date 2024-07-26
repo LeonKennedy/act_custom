@@ -29,6 +29,7 @@ class Recorder:
         self.arm_left = arm_left
         self.arm_right = arm_right
         self.camera = CameraGroup()
+        self.bit_width = 20
 
     def clear_uart(self):
         self.arm_left.clear_uart()
@@ -89,13 +90,13 @@ class Recorder:
 
     def _record_episode(self, info=True):
         start = time.time()
-        bit_width = 20
-        left_master_angles, left_trigger_angle, left_puppet_angles, left_grasper_angle = self.arm_left.follow(bit_width)
+        left_master_angles, left_trigger_angle, left_puppet_angles, left_grasper_angle = self.arm_left.follow(
+            self.bit_width)
         right_master_angles, right_trigger_angle, right_puppet_angles, right_grasper_angle = self.arm_right.follow(
-            bit_width)
-
+            self.bit_width)
+        tm1 = time.time()
         images = self.camera.read_sync()
-        camera_cost = time.time() - start
+        camera_cost = time.time() - tm1
 
         episode = {
             'left_master': left_master_angles + [left_trigger_angle],
@@ -112,10 +113,10 @@ class Recorder:
         while (time.time() - start) < (1 / FPS):
             time.sleep(0.0001)
         duration = time.time() - start
-        bit_width = 1 / duration / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
+        self.bit_width = 1 / duration / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
 
         if info:
-            print(duration, "bit_width:", bit_width, "camera:", round(camera_cost, 4))
+            print(duration, "bit_width:", self.bit_width, "camera:", round(camera_cost, 4))
             print("left", episode["left_master"], episode["left_puppet"])
             print("right", episode["right_master"], episode["right_puppet"])
         return episode
@@ -130,6 +131,7 @@ class Recorder:
             images = self.camera.read_sync()
 
         start_tm = time.time()
+        bit_width = 20
         while 1:
             episode = self._record_episode()
             episodes.append(episode)

@@ -12,6 +12,7 @@ import time
 from threading import Thread
 import concurrent.futures
 from typing import Dict
+from tqdm.auto import tqdm
 
 import cv2
 import numpy as np
@@ -75,26 +76,20 @@ def show():
     cv2.destroyAllWindows()
 
 
-def _init_camera(i: int):
+def _init_camera(name: str, i: int):
     cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMAGE_W)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, IMAGE_H)
     assert cap.isOpened()
+    print(name, cap.get(cv2.CAP_PROP_FOURCC), cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     return cap
-
-
-def build_camera():
-    return (_init_camera(CAMERA_NAME["top"]),
-            _init_camera(CAMERA_NAME["FRONT"]),
-            _init_camera(CAMERA_NAME["LEFT"]),
-            _init_camera(CAMERA_NAME["RIGHT"]))
 
 
 class CameraGroup:
 
     def __init__(self):
-        self.caps = {name: _init_camera(i) for name, i in CAMERA_NAME.items()}
+        self.caps = {name: _init_camera(name, i) for name, i in CAMERA_NAME.items()}
         self.image_size = (IMAGE_H, IMAGE_W, 3)
         # self.tasks = {name: Thread(target=cap.read) for name, cap in self.caps.items()}
 
@@ -111,7 +106,11 @@ class CameraGroup:
         results = {}
         for name, cap in self.caps.items():
             ret, img = cap.read()
-            results[name] = img
+            assert ret
+            if name in ("LEFT", "RIGHT"):
+                results[name] = cv2.resize(img, (IMAGE_W, IMAGE_H))
+            else:
+                results[name] = img
         return results
 
     def show(self):
@@ -127,20 +126,23 @@ class CameraGroup:
         pass
 
 
-def test_async_with_sync(cnt=1000):
+def test_async_with_sync(cnt=100):
     print("test start!")
     start = time.time()
-    i = 0
-    while i < cnt:
+    for _ in tqdm(range(cnt)):
         out = cg.read_sync()
-        i += 1
     print("SYNC time:", round(time.time() - start))
 
     start = time.time()
-    i = 0
-    while i < cnt:
-        out = cg.read_async()
-        i += 1
+    for _ in tqdm(range(cnt)):
+        # out = cg.caps['TOP'].read()
+        out = cg.caps['FRONT'].read()
+    print("ASYNC time:", round(time.time() - start))
+
+    start = time.time()
+    for _ in tqdm(range(cnt)):
+        out = cg.caps['TOP'].read()
+        out = cg.caps['FRONT'].read()
     print("ASYNC time:", round(time.time() - start))
 
 
@@ -149,5 +151,4 @@ if __name__ == '__main__':
     # show()
     cg = CameraGroup()
     # test_async_with_sync()
-    # cg.show()
-    a = cg.read_sync()
+    cg.show()

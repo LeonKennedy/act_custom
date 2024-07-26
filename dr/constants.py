@@ -11,8 +11,8 @@ if sys.platform == "darwin":
 else:
     COM_LEFT = "COM3"
     COM_RIGHT = "COM5"
-    GRASPER_NAME = 'COM12'
     TRIGGER_NAME = "COM10"
+    GRASPER_NAME= "COM11"
     CAMERA_NAME = {"TOP": 1, "RIGHT": 3, "FRONT": 0, "LEFT": 2}
     BUTTON_NAME = "COM12"
 
@@ -21,8 +21,8 @@ BAUDRATE = 115200  # 串口波特率，与CAN模块的串口波特率一致，�
 LEADERS_R = LEADERS_L = [1, 2, 3, 4, 5, 6]
 FOLLOWERS_R = FOLLOWERS_L = [7, 8, 9, 10, 11, 12]
 
-IMAGE_W = 640
-IMAGE_H = 360
+IMAGE_W = 320
+IMAGE_H = 240
 
 TRIGGER_MOTOR_ID_LEFT = 2
 TRIGGER_MOTOR_ID_RIGHT = 4
