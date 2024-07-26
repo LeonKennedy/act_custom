@@ -15,5 +15,6 @@ ipython
 pyserial
 keyboard
 pymodbus
+zarr
 
 # cd act/detr && pip install -e .

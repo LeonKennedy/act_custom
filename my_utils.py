@@ -123,7 +123,7 @@ def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val, chunk
     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats, chunk_size)
     val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats, chunk_size)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, pin_memory=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val+2, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val + 2, pin_memory=True)
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -191,17 +191,6 @@ def detach_dict(d):
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
-
-
-# def get_angle_all(dr):
-#     while 1:
-#         angles = dr.get_angle_speed_torque_all([i for i in range(1, 27)])
-#         if angles:
-#             angles = [row[0] for row in angles]
-#             return angles[12:18], angles[18:24], angles[24], angles[:6], angles[6:12], angles[25]
-#         print("read again!!!!!!!!!!!!!!!!!!!!!!!")
-
-
 
 
 if __name__ == '__main__':

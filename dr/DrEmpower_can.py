@@ -3,7 +3,7 @@
 import sys
 import time
 import serial
-from parameter_interface import *
+from dr.parameter_interface import *
 import math as cm
 import struct
 

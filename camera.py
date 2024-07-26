@@ -78,8 +78,8 @@ def show():
 def _init_camera(i: int):
     cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap.set(3, IMAGE_W)
-    cap.set(4, IMAGE_H)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMAGE_W)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, IMAGE_H)
     assert cap.isOpened()
     return cap
 
