@@ -14,11 +14,14 @@ import time
 from datetime import datetime
 import concurrent.futures
 
+import keyboard
+
 from dr import build_two_arm, Arm
-from dr.constants import FPS, BUTTON_NAME
-from button import Button
+from dr.constants import FPS
 from camera import CameraGroup
 from task_config import TASK_CONFIG
+
+BUTTON_KEY = '5'
 
 
 class Recorder:
@@ -36,19 +39,22 @@ class Recorder:
         self.arm_right.clear_uart()
 
     def record(self):
-        self.arm_left.master.set_end_torque_zero()
-        self.arm_right.master.set_end_torque_zero()
         k = input('two arm move to start position?(q)')
         if k != 'q':
             self.arm_left.move_start_position()
             self.arm_right.move_start_position()
 
+        self.arm_left.master.set_end_torque_zero()
+        self.arm_right.master.set_end_torque_zero()
         print("move done, set end torque zero..")
         self.clear_uart()
         i = 0
+        global RUNNING_FLAG
+        keyboard.on_press_key(BUTTON_KEY, _change_running_flag)
         while True:
             self.record_one()
             i += 1
+            RUNNING_FLAG = True
             self.follow()
             print('next episode？:', i)
             self.clear_uart()
@@ -123,8 +129,7 @@ class Recorder:
 
     def record_one(self):
         print('start record now?')
-        button.block_waiting_press()
-
+        keyboard.wait(BUTTON_KEY)
         episodes = []
 
         for i in range(3):
@@ -132,29 +137,34 @@ class Recorder:
 
         start_tm = time.time()
         bit_width = 20
-        while 1:
+        while RUNNING_FLAG:
             episode = self._record_episode()
             episodes.append(episode)
 
-            if button.is_press():
-                button.reset_input_buffer()
-                break
         duration = time.time() - start_tm
         f = 'output/%s/%s.pkl' % (self.folder_name, datetime.now().strftime("%m_%d_%H_%M_%S"))
         pickle.dump(episodes, open(f, 'wb'))
         print(f'save to {f}, length {len(episodes)} FPS {round(len(episodes) / duration, 2)}')
 
     def follow(self):
-        while 1:
+        while RUNNING_FLAG:
             self._record_episode(False)
-            if button.is_press():
-                break
+
         self.arm_left.lock()
         self.arm_right.lock()
+
+
+RUNNING_FLAG = False
+
+
+def _change_running_flag(event):
+    global RUNNING_FLAG
+    RUNNING_FLAG = not RUNNING_FLAG
+    print(f"change running flag to {RUNNING_FLAG}")
 
 
 if __name__ == '__main__':
     arm_left, arm_right = build_two_arm(TASK_CONFIG["Pick_Pen"])
     r = Recorder(arm_left, arm_right)
-    button = Button(BUTTON_NAME, 9600)
+    # button = Button(BUTTON_NAME, 9600)
     r.record()

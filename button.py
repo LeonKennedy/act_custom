@@ -1,6 +1,7 @@
 import time
 
 import serial
+import keyboard
 
 
 class Button:
@@ -33,18 +34,40 @@ class Button:
         return self._s.in_waiting
 
 
+running_flag = True
+
+
+def _change_state(event):
+    global running_flag
+    running_flag = False
+    print("in change")
+
+
+def test_jiao_ta():
+    print("Start?")
+    keyboard.wait("5")
+    keyboard.on_press_key("5", _change_state)
+    i = 0
+    while running_flag:
+        i+=1
+        time.sleep(i)
+        print(f"waiting---{running_flag}")
+
+
+
 if __name__ == '__main__':
-    b = Button("COM6", 9600)
-    while 1:
-        print("wait for start？")
-        b.block_waiting_press()
-
-        while 1:
-            print("doing...")
-            time.sleep(1)
-            if b.is_press():
-                b.reset_input_buffer()
-                print("save", b.in_waiting)
-                break
-
-    print("Done!", b.in_waiting)
+    test_jiao_ta()
+    # b = Button("COM6", 9600)
+    # while 1:
+    #     print("wait for start？")
+    #     b.block_waiting_press()
+    #
+    #     while 1:
+    #         print("doing...")
+    #         time.sleep(1)
+    #         if b.is_press():
+    #             b.reset_input_buffer()
+    #             print("save", b.in_waiting)
+    #             break
+    #
+    # print("Done!", b.in_waiting)

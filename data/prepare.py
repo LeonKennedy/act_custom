@@ -8,9 +8,10 @@
 @time: 2024/7/25 15:47
 @desc:
 """
-import os
 import glob
+import os
 import pickle
+import sys
 from itertools import accumulate
 import zarr
 import numpy as np
@@ -51,8 +52,8 @@ def main(path: str):
     data = root.create_group("data")
     action = data.create_dataset("action", shape=(0, 14), chunks=(2000, -1), dtype=np.float32)
     agent_pos = data.create_dataset("state", shape=(0, 14), chunks=(2000, -1), dtype=np.float32)
-    image = data.create_dataset("img", shape=(0, 4, 360, 640, 3), chunks=(200, -1, -1, -1, -1), dtype=np.uint8)
-    all_file = glob.glob(path + "/*.pkl")
+    image = data.create_dataset("img", shape=(0, 4, 240, 320, 3), chunks=(200, -1, -1, -1, -1), dtype=np.uint8)
+    all_file = glob.glob(os.path.join(path, "*.pkl"))
     episode_ends = []
     for f in all_file:
         master, puppet, image_data = handle_one(f)
@@ -74,6 +75,5 @@ def main(path: str):
 
 
 if __name__ == '__main__':
-    data_path = "../output/07_24"
-    print(os.getcwd())
+    data_path = sys.argv[1]
     main(data_path)

@@ -11,7 +11,7 @@ run/
 output/
 exp_arm/
 **/.DS_Store
-
+*.zarr
 fuse.cfg
 
 *.ai
