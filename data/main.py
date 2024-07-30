@@ -54,7 +54,7 @@ def get_data_stats(data):
 
 def normalize_data(data, stats):
     # nomalize to [0,1]
-    ndata = (data - stats['min']) / (stats['max'] - stats['min'] + 1e-8)
+    ndata = (data - stats['min']) / (stats['max'] - stats['min'])
     # normalize to [-1, 1]
     ndata = ndata * 2 - 1
     return ndata

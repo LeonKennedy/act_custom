@@ -3,9 +3,10 @@
 import sys
 import time
 import serial
-from dr.parameter_interface import *
 import math as cm
 import struct
+
+from parameter_interface import *
 
 
 class DrEmpower_can(object):

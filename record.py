@@ -16,7 +16,7 @@ import concurrent.futures
 
 import keyboard
 
-from dr import build_two_arm, Arm
+from dr import build_two_arm, Arm, fps_wait
 from dr.constants import FPS
 from camera import CameraGroup
 from task_config import TASK_CONFIG
@@ -32,7 +32,7 @@ class Recorder:
         self.arm_left = arm_left
         self.arm_right = arm_right
         self.camera = CameraGroup()
-        self.bit_width = 20
+        self.bit_width = 1 / FPS / 2
 
     def clear_uart(self):
         self.arm_left.clear_uart()
@@ -61,7 +61,7 @@ class Recorder:
 
     def _async_record_episode(self, info=True):
         start = time.time()
-        bit_width = 20
+        bit_width = 1 / FPS / 2
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exc:
             left_future = exc.submit(self.arm_left.follow, (bit_width,))
             right_future = exc.submit(self.arm_right.follow, bit_width)
@@ -116,8 +116,7 @@ class Recorder:
             'image_size': self.camera.image_size  # H * W * 3
         }
 
-        while (time.time() - start) < (1 / FPS):
-            time.sleep(0.0001)
+        fps_wait(FPS, start)
         duration = time.time() - start
         self.bit_width = 1 / duration / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
 
@@ -136,7 +135,6 @@ class Recorder:
             images = self.camera.read_sync()
 
         start_tm = time.time()
-        bit_width = 20
         while RUNNING_FLAG:
             episode = self._record_episode()
             episodes.append(episode)
@@ -164,7 +162,7 @@ def _change_running_flag(event):
 
 
 if __name__ == '__main__':
-    arm_left, arm_right = build_two_arm(TASK_CONFIG["Pick_Pen"])
+    arm_left, arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
     r = Recorder(arm_left, arm_right)
     # button = Button(BUTTON_NAME, 9600)
     r.record()

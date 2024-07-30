@@ -8,14 +8,18 @@
 @time: 2024/7/26 10:04
 @desc:
 """
+import time
+import math
 from typing import Union, Callable, Dict
 
+import numpy as np
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 import torchvision
 from torch import nn
 import torch
-import math
+import concurrent.futures
+from loguru import logger
 from data import normalize_data, unnormalize_data
 
 
@@ -329,6 +333,22 @@ def replace_bn_with_gn(
     return root_module
 
 
+def image_embedding_sync(vision_encodes, nimage):
+    features = []
+    for i in range(nimage.shape[2]):
+        # (obs_horizon,512)
+        image_feature = vision_encodes[i](nimage[:, :, i].flatten(end_dim=1))
+        image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
+        features.append(image_feature)
+    image_features = torch.cat(features, dim=-1) # (B ,obs_horizon, 2048)
+    return image_features
+
+
+def image_embedding_async(vision_encodes, nimage):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as exc:
+        futures = {}
+
+
 class DiffusionPolicy:
     def __init__(self, nets: nn.ModuleDict, stats: Dict):
         self.device = torch.device('cuda')
@@ -343,13 +363,8 @@ class DiffusionPolicy:
     def forward(self, nimage, nagent_pos, naction):
         # encoder vision features
         nimage = nimage / 255
-        features = []
-        for i in range(nimage.shape[2]):
-            # (obs_horizon,512)
-            image_feature = self.nets['vision_encoders'][i](nimage[:, :, i].flatten(end_dim=1))
-            image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
-            features.append(image_feature)
-        image_features = torch.cat(features, dim=-1)  # (B ,obs_horizon, 2048)
+
+        image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
 
         # concatenate vision feature and low-dim obs
         obs_features = torch.cat([image_features, nagent_pos], dim=-1)
@@ -380,37 +395,35 @@ class DiffusionPolicy:
         print("save to", path)
 
     ######     INFERENCE    ######
-
-    def inference(self, nimage, nagent_pos, action_horizon: int = 8):
+    def inference(self, nimage, nagent_pos, action_horizon: int = 8) -> np.ndarray:
+        start_tm = time.time()
+        obs_horizon = nagent_pos.shape[0]
         nagent_poses = normalize_data(nagent_pos, self.stats['agent_pos'])
-        nimage = nimage / 255
 
         # device transfer
         nimage = torch.from_numpy(nimage).to(self.device, dtype=torch.float32)
+        nimage = torch.unsqueeze(nimage, dim=0)
         # (2,3,96,96)
         nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
+        nagent_poses = torch.unsqueeze(nagent_poses, dim=0)
         # (2,2)
-
+        tm1 = time.time()
         # infer action
         with torch.no_grad():
             # get image features
-            features = []
-            for i in range(nimage.shape[2]):
-                # (obs_horizon,512)
-                image_feature = self.nets['vision_encoders'][i](nimage[:, :, i].flatten(end_dim=1))
-                image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
-                features.append(image_feature)
-            image_features = torch.cat(features, dim=-1)  # (B ,obs_horizon, 2048)
+            image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
+            tm2 = time.time()
 
-            # concat with low-dim observations
+
+            # concat with low-dim observations (B, obs, 2048 + 14)
             obs_features = torch.cat([image_features, nagent_poses], dim=-1)
 
-            # reshape observation to (B,obs_horizon*obs_dim)
+            # reshape observation to (B, 2062 * obs)
             obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
 
             # initialize action from Guassian noise
             pred_horizon = 16
-            noisy_action = torch.randn((1, pred_horizon, nagent_pos.shape[2]), device=self.device)
+            noisy_action = torch.randn((1, pred_horizon, nagent_poses.shape[2]), device=self.device)
             naction = noisy_action
 
             # init scheduler
@@ -423,25 +436,26 @@ class DiffusionPolicy:
                     sample=naction,
                     timestep=k,
                     global_cond=obs_cond
-                )
+                )  # (B, 16, , action_dim)
 
                 # inverse diffusion step (remove noise)
                 naction = self.noise_scheduler.step(
                     model_output=noise_pred,
                     timestep=k,
                     sample=naction
-                ).prev_sample
+                ).prev_sample  # (B, 16, action_dim)
 
-        # unnormalize action
-        naction = naction.detach().to('cpu').numpy()
-        # (B, pred_horizon, action_dim)
-        naction = naction[0]
+            tm3 = time.time()
+
+        # unnormalize action (B, pred_horizon, action_dim)
+        naction = naction.detach().to('cpu').numpy()[0]  # (16, 14)
         action_pred = unnormalize_data(naction, self.stats['action'])
 
         # only take action_horizon number of actions
-        obs_horizon = nagent_pos.shape[1] - 1
-        end = obs_horizon + action_horizon
-        action = action_pred[obs_horizon:end, :]
+        start = obs_horizon - 1
+        end = start + action_horizon
+        action = action_pred[start:end, :]
+        logger.info(f"time cost: {round(tm1 - start_tm, 4)}, vision encode {round(tm2 - tm1, 4)} noise {round(tm3 -tm2, 4)} end {round(time.time() - tm3), 4}")
         return action
 
 

@@ -21,7 +21,8 @@ class ServoGroup:
         self.id_list = id_list
 
     def free(self):
-        return self.dr.free()
+        self.dr.set_torques(self.id_list, [0] * len(self.id_list))
+        # return self.dr.free()
 
     def lock(self):
         return self.dr.lock()

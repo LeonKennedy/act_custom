@@ -62,6 +62,7 @@ class Arm:
         master_angles, puppet_angles = self.get_all_angle()
         # last not lock
         self.dr.set_angles(self.master.id_list[:-1], master_angles[:-1], 10, 10, 1)
+        print(self.__class__, "lock at", master_angles)
 
     @abc.abstractmethod
     def move_start_position(self):
@@ -78,7 +79,7 @@ class ArmLeft(Arm):
         super().__init__(m, p, trigger, grasper)
 
     def move_start_position(self):
-        start = [0, 0, -30, -20, 90, 0]
+        start = [-35, 15, -78, -20, 90, 0-14]
         self.master.move_to1(start)
         time.sleep(2)
         self.puppet.move_to1(start)
@@ -92,7 +93,7 @@ class ArmRight(Arm):
         super().__init__(m, p, trigger, grasper)
 
     def move_start_position(self):
-        start = [0, 0, 90, 0, -86, 0]
+        start = [32, 16, 90, -3, -86, -6]
         self.master.move_to1(start)
         time.sleep(2)
         self.puppet.move_to1(start)
