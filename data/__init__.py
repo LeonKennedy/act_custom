@@ -9,4 +9,4 @@
 @desc:
 """
 
-from .main import build_dataloader
+from .main import build_dataloader, normalize_data, unnormalize_data, EpisodicDataset

@@ -8,12 +8,15 @@
 @time: 2024/7/26 10:04
 @desc:
 """
-from typing import Union, Callable
+from typing import Union, Callable, Dict
 
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.training_utils import EMAModel
 import torchvision
 from torch import nn
 import torch
 import math
+from data import normalize_data, unnormalize_data
 
 
 class SinusoidalPosEmb(nn.Module):
@@ -326,16 +329,138 @@ def replace_bn_with_gn(
     return root_module
 
 
-def build_net(obs_horizon: int, action_dim: int):
+class DiffusionPolicy:
+    def __init__(self, nets: nn.ModuleDict, stats: Dict):
+        self.device = torch.device('cuda')
+        nets.to(self.device)
+        self.nets = nets
+        self.stats = stats
+        self.noise_scheduler = get_noise_ddpm_schedule()
+
+    def create_ema(self):
+        self.ema = EMAModel(parameters=self.nets.parameters(), power=0.75)
+
+    def forward(self, nimage, nagent_pos, naction):
+        # encoder vision features
+        nimage = nimage / 255
+        features = []
+        for i in range(nimage.shape[2]):
+            # (obs_horizon,512)
+            image_feature = self.nets['vision_encoders'][i](nimage[:, :, i].flatten(end_dim=1))
+            image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
+            features.append(image_feature)
+        image_features = torch.cat(features, dim=-1)  # (B ,obs_horizon, 2048)
+
+        # concatenate vision feature and low-dim obs
+        obs_features = torch.cat([image_features, nagent_pos], dim=-1)
+        obs_cond = obs_features.flatten(start_dim=1)  # (B, obs_horizon * obs_dim)
+
+        noise = torch.randn(naction.shape, device=self.device)
+
+        B = nagent_pos.shape[0]
+        # sample a diffusion iteration for each data point
+        timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (B,), device=self.device).long()
+
+        # add noise to the clean images according to the noise magnitude at each diffusion iteration
+        # (this is the forward diffusion process)
+        noisy_actions = self.noise_scheduler.add_noise(naction, noise, timesteps)
+
+        # predict the noise residual
+        noise_pred = self.nets['noise_pred_net'](noisy_actions, timesteps, global_cond=obs_cond)
+        return noise_pred, noise
+
+    def ema_step(self):
+        # update Exponential Moving Average of the model weights
+        self.ema.step(self.nets.parameters())
+
+    def save(self, path: str, loss: float, epoch: int):
+        params = {"stats": self.stats, "weights": self.nets.state_dict(),
+                  "loss": loss, "epoch": epoch}
+        torch.save(params, path)
+        print("save to", path)
+
+    ######     INFERENCE    ######
+
+    def inference(self, nimage, nagent_pos, action_horizon: int = 8):
+        nagent_poses = normalize_data(nagent_pos, self.stats['agent_pos'])
+        nimage = nimage / 255
+
+        # device transfer
+        nimage = torch.from_numpy(nimage).to(self.device, dtype=torch.float32)
+        # (2,3,96,96)
+        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
+        # (2,2)
+
+        # infer action
+        with torch.no_grad():
+            # get image features
+            features = []
+            for i in range(nimage.shape[2]):
+                # (obs_horizon,512)
+                image_feature = self.nets['vision_encoders'][i](nimage[:, :, i].flatten(end_dim=1))
+                image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
+                features.append(image_feature)
+            image_features = torch.cat(features, dim=-1)  # (B ,obs_horizon, 2048)
+
+            # concat with low-dim observations
+            obs_features = torch.cat([image_features, nagent_poses], dim=-1)
+
+            # reshape observation to (B,obs_horizon*obs_dim)
+            obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
+
+            # initialize action from Guassian noise
+            pred_horizon = 16
+            noisy_action = torch.randn((1, pred_horizon, nagent_pos.shape[2]), device=self.device)
+            naction = noisy_action
+
+            # init scheduler
+            num_diffusion_iters = 100
+            self.noise_scheduler.set_timesteps(num_diffusion_iters)
+
+            for k in self.noise_scheduler.timesteps:
+                # predict noise
+                noise_pred = self.nets['noise_pred_net'](
+                    sample=naction,
+                    timestep=k,
+                    global_cond=obs_cond
+                )
+
+                # inverse diffusion step (remove noise)
+                naction = self.noise_scheduler.step(
+                    model_output=noise_pred,
+                    timestep=k,
+                    sample=naction
+                ).prev_sample
+
+        # unnormalize action
+        naction = naction.detach().to('cpu').numpy()
+        # (B, pred_horizon, action_dim)
+        naction = naction[0]
+        action_pred = unnormalize_data(naction, self.stats['action'])
+
+        # only take action_horizon number of actions
+        obs_horizon = nagent_pos.shape[1] - 1
+        end = obs_horizon + action_horizon
+        action = action_pred[obs_horizon:end, :]
+        return action
+
+
+def build_policy(obs_horizon: int, action_dim: int, stats: Dict, weight=None) -> DiffusionPolicy:
+    nets = build_net(obs_horizon, action_dim)
+    if weight is not None:
+        nets.load_state_dict(weight)
+    return DiffusionPolicy(nets, stats)
+
+
+def build_net(obs_horizon: int, action_dim: int) -> nn.ModuleDict:
     # ResNet18 has output dim of 512
     vision_feature_dim = 512
     # agent_pos is 2 dimensional
-    lowdim_obs_dim = 14
-    # observation feature has 514 dims in total per step
-    obs_dim = vision_feature_dim + lowdim_obs_dim
+    # lowdim_obs_dim = 14
+    camera_cnt = 4
+    obs_dim = vision_feature_dim * camera_cnt + action_dim
 
-    vision_encoder = get_resnet('resnet18')
-    vision_encoder = replace_bn_with_gn(vision_encoder)
+    vision_encoders = nn.ModuleList([replace_bn_with_gn(get_resnet('resnet18')) for _ in range(camera_cnt)])
 
     noise_pred_net = ConditionalUnet1D(
         input_dim=action_dim,
@@ -343,25 +468,40 @@ def build_net(obs_horizon: int, action_dim: int):
     )
 
     nets = nn.ModuleDict({
-        'vision_encoder': vision_encoder,
+        'vision_encoders': vision_encoders,
         'noise_pred_net': noise_pred_net
     })
     return nets
 
 
-def test_build_net(obs_horizon, action_dim):
+def get_noise_ddpm_schedule(num_diffusion_iters: int = 100):
+    return DDPMScheduler(
+        num_train_timesteps=num_diffusion_iters,
+        # the choise of beta schedule has big impact on performance
+        # we found squared cosine works the best
+        beta_schedule='squaredcos_cap_v2',
+        # clip output to [-1,1] to improve stability
+        clip_sample=True,
+        # our network predicts noise (instead of denoised action)
+        prediction_type='epsilon'
+    )
+
+
+def test_build_net(obs_horizon, action_dim, camera_cnt: int = 4):
     pred_horizon = 16
     nets = build_net(obs_horizon, action_dim)
     with torch.no_grad():
         # example inputs
-        image = torch.zeros((1, obs_horizon, 3, 360, 640))
+        images = torch.zeros((1, obs_horizon, camera_cnt, 3, 360, 640))
         agent_pos = torch.zeros((1, obs_horizon, action_dim))
         # vision encoder
-        image_features = nets['vision_encoder'](image.flatten(end_dim=1))  # (2,512)
-
-        image_features = image_features.reshape(*image.shape[:2], -1)  # (1,2,512)
-
-        obs = torch.cat([image_features, agent_pos], dim=-1)  # (1,2,512 + 14)
+        features = []
+        for i in range(images.shape[2]):
+            image_feature = nets['vision_encoders'][i](images[:, :, i].flatten(end_dim=1))  # (2,512)
+            image_feature = image_feature.reshape(*images.shape[:2], -1)  # (1,2,512)
+            features.append(image_feature)
+        image_features = torch.cat(features, dim=-1)  # (1,2,512 * 4)
+        obs = torch.cat([image_features, agent_pos], dim=-1)  # (1, 2, 2048 + 14)
 
         noised_action = torch.randn((1, pred_horizon, action_dim))
         diffusion_iter = torch.zeros((1,))
@@ -378,7 +518,7 @@ def test_build_net(obs_horizon, action_dim):
         # the actual noise removal is performed by NoiseScheduler
         # and is dependent on the diffusion noise schedule
         denoised_action = noised_action - noise
-        print(denoised_action.shape)
+        print(denoised_action.shape)  # (B, 16, 14)
 
 
 if __name__ == '__main__':

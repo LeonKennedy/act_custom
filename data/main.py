@@ -54,7 +54,7 @@ def get_data_stats(data):
 
 def normalize_data(data, stats):
     # nomalize to [0,1]
-    ndata = (data - stats['min']) / (stats['max'] - stats['min'])
+    ndata = (data - stats['min']) / (stats['max'] - stats['min'] + 1e-8)
     # normalize to [-1, 1]
     ndata = ndata * 2 - 1
     return ndata
@@ -169,7 +169,7 @@ def build_dataloader(data_path: str):
     print("batch['image'].shape:", batch['image'].shape)
     print("batch['agent_pos'].shape:", batch['agent_pos'].shape)
     print("batch['action'].shape", batch['action'].shape)
-    return dataloader
+    return dataloader, dataset.stats
 
 
 if __name__ == '__main__':
