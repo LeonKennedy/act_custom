@@ -25,23 +25,26 @@ from policy_diffusion import build_policy
 def run(args):
     print(args)
     obs_horizon = args.obs_horizon
+    action_dim = args.action_dim
+    action_horizon = args.action_horizon
     num_epochs = args.num_epochs
-    dataloader, stats = build_dataloader(args.data_path)
-    # nets = build_net(args.obs_horizon, args.action_dim)
+    iter_num = args.iter_num
+    camera_cnt = 3
+
+    dataloader, stats = build_dataloader(args.data_path, args.batch_size, obs_horizon, action_horizon)
     if os.path.exists(args.ckpt):
         print("load weight from", args.ckpt)
         params = torch.load(args.ckpt)
-        # with open(args.ckpt, 'rb') as f:
-        policy = build_policy(args.obs_horizon, args.action_dim, stats, params['weights'])
+        # obs_horizon = params["obs_horizon"]
+        iter_num = params["iter_num"]
+        policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats, params['weights'])
         min_loss = params["loss"]
         current_epoch = params["epoch"]
     else:
         current_epoch = 0
         min_loss = np.inf
-        policy = build_policy(args.obs_horizon, args.action_dim, stats)
+        policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats)
     policy.create_ema()
-    # nets = build_net(obs_horizon, args.action_dim)
-    # ema = EMAModel(parameters=nets.parameters(), power=0.75)
     optimizer = torch.optim.AdamW(params=policy.nets.parameters(), lr=1e-4, weight_decay=1e-6)
     lr_scheduler = get_scheduler(
         name='cosine',
@@ -73,20 +76,17 @@ def run(args):
                     optimizer.zero_grad()
                     lr_scheduler.step()
 
-
                     policy.ema_step()
-
-                    # logging
                     loss_cpu = loss.item()
 
-                    if loss_cpu < min_loss:
-                        min_loss = loss_cpu
-                        policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), min_loss, epoch_idx)
                     epoch_loss.append(loss_cpu)
                     tepoch.set_postfix(loss=loss_cpu)
 
+            if np.mean(epoch_loss) < min_loss:
+                min_loss = np.mean(epoch_loss)
+                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), min_loss, epoch_idx, obs_horizon)
             if epoch_idx> 0 and epoch_idx % 100 == 0:
-                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), min_loss, epoch_idx)
+                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), np.mean(epoch_loss), epoch_idx, obs_horizon)
             tglobal.set_postfix(loss=np.mean(epoch_loss))
 
 
@@ -101,6 +101,8 @@ if __name__ == '__main__':
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
-    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=2)
+    parser.add_argument('--action_horizon', action='store', type=int, help='action horizon', default=20)
+    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=3)
+    parser.add_argument("--iter_num", action='store', type=int, help='iter num', default=70)
 
     run(parser.parse_args())

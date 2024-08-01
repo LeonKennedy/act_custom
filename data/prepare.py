@@ -1,4 +1,4 @@
-   #!/usr/bin/env python
+# !/usr/bin/env python
 # encoding: utf-8
 """
 @author: coffee
@@ -13,6 +13,8 @@ import os
 import pickle
 import sys
 from itertools import accumulate
+from typing import Tuple
+
 import zarr
 import numpy as np
 
@@ -21,7 +23,7 @@ def _camera(data):
     imgs = []
     for e in data:
         c = e['camera']
-        img = np.stack([c['TOP'], c['FRONT'], c['LEFT'][:360], c['RIGHT'][:360]])  # 4 360, 640, 3
+        img = np.stack([c['TOP'], c['LEFT'], c['RIGHT']])  # 4 360, 640, 3
         imgs.append(img)
     return np.stack(imgs)
 
@@ -44,18 +46,32 @@ def handle_one(filename: str):
     return master, puppet, image
 
 
+def get_info(filename: str) -> Tuple[int, int, int]:
+    data = pickle.loads(open(filename, 'rb').read())
+    episode = data[0]
+    state_dim = len(episode['left_puppet']) + len(episode['right_puppet'])
+    action_dim = len(episode['left_master']) + len(episode['right_master'])
+    camera_cnt = len(episode['camera'])
+    return state_dim, action_dim, camera_cnt
+
+
 def main(path: str):
-    L = 1000
+    all_file = glob.glob(os.path.join(path, "*.pkl"))
+    assert len(all_file) > 0
+    state_dim, action_dim, camera_cnt = get_info(all_file[0])
+
+
     root = zarr.open("train.zarr", mode="w")
     # zip_store = zarr.ZipStore("train.zip", mode='w')
     # root = zarr.group(store=zip_store)
     data = root.create_group("data")
-    action = data.create_dataset("action", shape=(0, 14), chunks=(2000, -1), dtype=np.float32)
-    agent_pos = data.create_dataset("state", shape=(0, 14), chunks=(2000, -1), dtype=np.float32)
-    image = data.create_dataset("img", shape=(0, 4, 240, 320, 3), chunks=(200, -1, -1, -1, -1), dtype=np.uint8)
+    action = data.create_dataset("action", shape=(0, action_dim), chunks=(2000, -1), dtype=np.float32)
+    agent_pos = data.create_dataset("state", shape=(0, state_dim), chunks=(2000, -1), dtype=np.float32)
+    image = data.create_dataset("img", shape=(0, camera_cnt, 240, 320, 3), chunks=(200, -1, -1, -1, -1), dtype=np.uint8)
     all_file = glob.glob(os.path.join(path, "*.pkl"))
     episode_ends = []
     for f in all_file:
+        print(f, "handle")
         master, puppet, image_data = handle_one(f)
         print(f, len(master))
         image.append(image_data)

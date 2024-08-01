@@ -340,7 +340,7 @@ def image_embedding_sync(vision_encodes, nimage):
         image_feature = vision_encodes[i](nimage[:, :, i].flatten(end_dim=1))
         image_feature = image_feature.reshape(*nimage.shape[:2], -1)  # (B,obs_horizon,512)
         features.append(image_feature)
-    image_features = torch.cat(features, dim=-1) # (B ,obs_horizon, 2048)
+    image_features = torch.cat(features, dim=-1)  # (B ,obs_horizon, 2048)
     return image_features
 
 
@@ -350,20 +350,19 @@ def image_embedding_async(vision_encodes, nimage):
 
 
 class DiffusionPolicy:
-    def __init__(self, nets: nn.ModuleDict, stats: Dict):
+    def __init__(self, nets: nn.ModuleDict, num_diffusion_iters: int, stats: Dict):
         self.device = torch.device('cuda')
         nets.to(self.device)
+        self.noise_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
+        self.num_diffusion_iters = num_diffusion_iters
         self.nets = nets
         self.stats = stats
-        self.noise_scheduler = get_noise_ddpm_schedule()
 
     def create_ema(self):
         self.ema = EMAModel(parameters=self.nets.parameters(), power=0.75)
 
     def forward(self, nimage, nagent_pos, naction):
         # encoder vision features
-        nimage = nimage / 255
-
         image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
 
         # concatenate vision feature and low-dim obs
@@ -388,11 +387,18 @@ class DiffusionPolicy:
         # update Exponential Moving Average of the model weights
         self.ema.step(self.nets.parameters())
 
-    def save(self, path: str, loss: float, epoch: int):
+    def save(self, path: str, loss: float, epoch: int, obs_horizon: int):
         params = {"stats": self.stats, "weights": self.nets.state_dict(),
-                  "loss": loss, "epoch": epoch}
+                  "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
+                  "iter_num": self.num_diffusion_iters}
         torch.save(params, path)
         print("save to", path)
+        params2 = {"stats": self.stats, "weights": self.ema.state_dict(),
+                   "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
+                   "iter_num": self.num_diffusion_iters}
+        ema_path = path.replace("epoch", "ema")
+        torch.save(params2, ema_path)
+        print("save to", ema_path)
 
     ######     INFERENCE    ######
     def inference(self, nimage, nagent_pos, action_horizon: int = 8) -> np.ndarray:
@@ -413,7 +419,6 @@ class DiffusionPolicy:
             # get image features
             image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
             tm2 = time.time()
-
 
             # concat with low-dim observations (B, obs, 2048 + 14)
             obs_features = torch.cat([image_features, nagent_poses], dim=-1)
@@ -455,23 +460,21 @@ class DiffusionPolicy:
         start = obs_horizon - 1
         end = start + action_horizon
         action = action_pred[start:end, :]
-        logger.info(f"time cost: {round(tm1 - start_tm, 4)}, vision encode {round(tm2 - tm1, 4)} noise {round(tm3 -tm2, 4)} end {round(time.time() - tm3), 4}")
+        logger.info(
+            f"time cost: {round(tm1 - start_tm, 4)}, vision encode {round(tm2 - tm1, 4)} noise {round(tm3 - tm2, 4)} end {round(time.time() - tm3), 4}")
         return action
 
 
-def build_policy(obs_horizon: int, action_dim: int, stats: Dict, weight=None) -> DiffusionPolicy:
-    nets = build_net(obs_horizon, action_dim)
+def build_policy(obs_horizon: int, action_dim: int, camera_cnt: int, iter_num: int, stats: Dict,
+                 weight=None) -> DiffusionPolicy:
+    nets = build_net(obs_horizon, action_dim, camera_cnt)
     if weight is not None:
         nets.load_state_dict(weight)
-    return DiffusionPolicy(nets, stats)
+    return DiffusionPolicy(nets, iter_num, stats)
 
 
-def build_net(obs_horizon: int, action_dim: int) -> nn.ModuleDict:
-    # ResNet18 has output dim of 512
+def build_net(obs_horizon: int, action_dim: int, camera_cnt: int) -> nn.ModuleDict:
     vision_feature_dim = 512
-    # agent_pos is 2 dimensional
-    # lowdim_obs_dim = 14
-    camera_cnt = 4
     obs_dim = vision_feature_dim * camera_cnt + action_dim
 
     vision_encoders = nn.ModuleList([replace_bn_with_gn(get_resnet('resnet18')) for _ in range(camera_cnt)])
@@ -503,7 +506,7 @@ def get_noise_ddpm_schedule(num_diffusion_iters: int = 100):
 
 def test_build_net(obs_horizon, action_dim, camera_cnt: int = 4):
     pred_horizon = 16
-    nets = build_net(obs_horizon, action_dim)
+    nets = build_net(obs_horizon, action_dim, camera_cnt)
     with torch.no_grad():
         # example inputs
         images = torch.zeros((1, obs_horizon, camera_cnt, 3, 360, 640))

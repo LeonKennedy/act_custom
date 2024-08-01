@@ -14,9 +14,7 @@ import zarr
 import numpy as np
 
 
-def create_sample_indices(
-        episode_ends: np.ndarray, sequence_length: int,
-        pad_before: int = 0, pad_after: int = 0):
+def create_sample_indices(episode_ends: np.ndarray, sequence_length: int, pad_before: int = 0, pad_after: int = 0):
     indices = list()
     for i in range(len(episode_ends)):
         start_idx = 0
@@ -111,8 +109,8 @@ class EpisodicDataset(torch.utils.data.Dataset):
         indices = create_sample_indices(
             episode_ends=episode_ends,
             sequence_length=pred_horizon,
-            pad_before=obs_horizon - 1,
-            pad_after=action_horizon - 1)
+            pad_before=1,
+            pad_after=0)
 
         # compute statistics and normalized data to [-1,1]
         stats = dict()
@@ -147,16 +145,17 @@ class EpisodicDataset(torch.utils.data.Dataset):
         )
 
         # discard unused observations
-        nsample['image'] = (nsample['image'][:self.obs_horizon, :] / 255.0).astype(np.float32)
+        # nsample['image'] = (nsample['image'][:self.obs_horizon, :] / 255.0).astype(np.float32)
+        nsample['image'] = nsample['image'][:self.obs_horizon, :]
         nsample['agent_pos'] = nsample['agent_pos'][:self.obs_horizon, :]
         return nsample
 
 
-def build_dataloader(data_path: str):
-    dataset = EpisodicDataset(data_path)
+def build_dataloader(data_path: str, batch_size:int, obs_horizon: int = 2, action_horizon: int = 8, pred_horizon: int = 16):
+    dataset = EpisodicDataset(data_path, obs_horizon, action_horizon)
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=32,
+        batch_size=batch_size,
         shuffle=True,
         # accelerate cpu-gpu transfer
         pin_memory=True,
@@ -176,4 +175,4 @@ if __name__ == '__main__':
     data_path = "train.zarr"
     # ds = EpisodicDataset(data_path)
     # print(ds.stats)
-    dl = build_dataloader(data_path)
+    dl = build_dataloader(data_path, 8)
