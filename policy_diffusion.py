@@ -357,6 +357,7 @@ class DiffusionPolicy:
         self.num_diffusion_iters = num_diffusion_iters
         self.nets = nets
         self.stats = stats
+        self.pred_horizon = 16
 
     def create_ema(self):
         self.ema = EMAModel(parameters=self.nets.parameters(), power=0.75)
@@ -416,32 +417,31 @@ class DiffusionPolicy:
         tm1 = time.time()
         # infer action
         with torch.no_grad():
-            # get image features
+            # get image features (B , obs, 512 * 3)
             image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
             tm2 = time.time()
 
-            # concat with low-dim observations (B, obs, 2048 + 14)
+            # concat with low-dim observations (B, obs, 1536 + 14)
             obs_features = torch.cat([image_features, nagent_poses], dim=-1)
 
-            # reshape observation to (B, 2062 * obs)
-            obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
+            # reshape observation to (B, 1550 * obs)
+            obs_cond = obs_features.flatten(start_dim=1)
 
             # initialize action from Guassian noise
-            pred_horizon = 16
-            noisy_action = torch.randn((1, pred_horizon, nagent_poses.shape[2]), device=self.device)
+            noisy_action = torch.randn((1, self.pred_horizon, nagent_poses.shape[2]), device=self.device)
             naction = noisy_action
 
-            # init scheduler
-            num_diffusion_iters = 100
-            self.noise_scheduler.set_timesteps(num_diffusion_iters)
+            # # init scheduler
+            # num_diffusion_iters = 100
+            # self.noise_scheduler.set_timesteps(num_diffusion_iters)
 
             for k in self.noise_scheduler.timesteps:
                 # predict noise
                 noise_pred = self.nets['noise_pred_net'](
-                    sample=naction,
+                    sample=naction, # (B, pred_horizon, 14)
                     timestep=k,
                     global_cond=obs_cond
-                )  # (B, 16, , action_dim)
+                )  # (B, 16, action_dim)
 
                 # inverse diffusion step (remove noise)
                 naction = self.noise_scheduler.step(

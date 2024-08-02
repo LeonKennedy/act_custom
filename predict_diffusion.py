@@ -65,9 +65,10 @@ def done(action):
 def build_and_load_policy(action_dim, ckpt_path: str):
     if os.path.exists(ckpt_path):
         params = torch.load(ckpt_path)
-        obs_horizon = 2
+        obs_horizon = params['obs_horizon']
+        iter_num = params['iter_num']
         action_horizon = 8
-        policy = build_policy(obs_horizon, action_dim, params['stats'], params['weights'])
+        policy = build_policy(obs_horizon, action_dim, 3, iter_num, params['stats'], params['weights'])
         return policy, obs_horizon, action_horizon
     raise FileNotFoundError("ckpt not found")
 
@@ -78,6 +79,7 @@ class Robo:
         self.camera = CameraGroup()
         self.angles = collections.deque(maxlen=obs_horizon)
         self.images = collections.deque(maxlen=obs_horizon)
+        self.obs_horizon = obs_horizon
         self.step_idx = 0
 
     def start(self):
@@ -104,16 +106,16 @@ class Robo:
     def first(self):
         angles = self.read_angle()
         imgs = self.camera.read_sync()
-        self.angles.append(angles)
-        self.angles.append(angles)
+        for _ in range(self.obs_horizon):
+            self.angles.append(angles)
 
-        img = np.stack([imgs['TOP'], imgs["FRONT"], imgs["LEFT"], imgs["RIGHT"]])
-        self.images.append(img)
-        self.images.append(img)
+        img = np.stack([imgs['TOP'], imgs["LEFT"], imgs["RIGHT"]])
+        for _ in range(self.obs_horizon):
+            self.images.append(img)
         return imgs, angles
 
     def action(self, action):
-        FPS = 2
+        FPS = 3
         bit_width = 2
         for i, step in enumerate(action):
             start_tm = time.time()
@@ -126,7 +128,7 @@ class Robo:
             imgs = self.camera.read_sync()
             angles = self.read_angle()
             if i >= 5:
-                img = np.stack([imgs['TOP'], imgs["FRONT"], imgs["LEFT"], imgs["RIGHT"]])
+                img = np.stack([imgs['TOP'], imgs["LEFT"], imgs["RIGHT"]])
                 self.images.append(img)
                 self.angles.append(angles)
 
@@ -144,9 +146,11 @@ def time_wait(fps: int, tm: float):
 def predict(args):
     policy, obs_horizon, action_horizon = build_and_load_policy(args.action_dim, args.ckpt)
     robo = Robo(obs_horizon)
-    # robo.start()
+    key = input("need move start position?[y/n]")
+    if key == 'y':
+        robo.start()
+        time.sleep(5)
 
-    time.sleep(5)
     robo.first()
     while 1:
         obs_images, obs = robo.get_obs()  # (2, 4, 3, 240, 320)  (2, 14)
@@ -166,11 +170,10 @@ def predict(args):
 if __name__ == "__main__":
     device = torch.device('cuda')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', action='store', type=str, help='ckpt dir', default="diff_ckpt/policy_epoch_best.ckpt")
+    parser.add_argument('--ckpt', action='store', type=str, help='ckpt dir', default="diff_ckpt/policy_epoch_900.ckpt")
     parser.add_argument('--data_path', action='store', type=str, help='data path', default='./data/train.zarr')
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
-    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=2)
 
     predict(parser.parse_args())

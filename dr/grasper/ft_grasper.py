@@ -1,5 +1,5 @@
 import msvcrt
-from typing import Dict
+from typing import Dict, Tuple
 
 from .scservo_sdk import PortHandler, sms_sts, COMM_SUCCESS
 
@@ -42,12 +42,13 @@ class Feite:
 
 
 class Grasper(Feite):
-    MAX_ANGLE = 3400
+    MAX_ANGLE = 3350
     MIN_ANGLE = 0
 
-    def __init__(self, sid: int, port_handler: PortHandler, config: Dict):
+    def __init__(self, sid: int, port_handler: PortHandler, config: Tuple = None):
         super().__init__(sid, port_handler)
-        self.MIN_ANGLE, self.MAX_ANGLE = config
+        if config:
+            self.MIN_ANGLE, self.MAX_ANGLE = config
 
     def set_angle(self, angle: float, speed: int = 4000, acc: int = 80):
         limit_angle = max(min(self.MAX_ANGLE, angle), self.MIN_ANGLE)
@@ -79,4 +80,4 @@ class Grasper(Feite):
 
 def build_grasper(config: Dict):
     port_handler = PortHandler("COM11", 1_000_000)
-    return Grasper(2, port_handler, config.get("left", {})), Grasper(1, port_handler, config.get("left", {}))
+    return Grasper(2, port_handler, config.get("left", None)), Grasper(1, port_handler, config.get("left", None))
