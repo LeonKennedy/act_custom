@@ -363,16 +363,16 @@ class DiffusionPolicy:
         self.ema = EMAModel(parameters=self.nets.parameters(), power=0.75)
 
     def forward(self, nimage, nagent_pos, naction):
-        # encoder vision features
+        # encoder vision features (B, obs, 512 *3)
         image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
 
-        # concatenate vision feature and low-dim obs
+        # concatenate vision feature and low-dim obs # (B, obs, 1536 + 14)
         obs_features = torch.cat([image_features, nagent_pos], dim=-1)
         obs_cond = obs_features.flatten(start_dim=1)  # (B, obs_horizon * obs_dim)
 
         noise = torch.randn(naction.shape, device=self.device)
 
-        B = nagent_pos.shape[0]
+        B = nagent_pos.shape[0] # (B, 16, 14)
         # sample a diffusion iteration for each data point
         timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (B,), device=self.device).long()
 
@@ -388,14 +388,16 @@ class DiffusionPolicy:
         # update Exponential Moving Average of the model weights
         self.ema.step(self.nets.parameters())
 
-    def save(self, path: str, loss: float, epoch: int, obs_horizon: int):
+    def save(self, path: str, loss: float, epoch: int, obs_horizon: int, pred_horizon: int):
         params = {"stats": self.stats, "weights": self.nets.state_dict(),
                   "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
+                  'pred_horizon': pred_horizon,
                   "iter_num": self.num_diffusion_iters}
         torch.save(params, path)
         print("save to", path)
         params2 = {"stats": self.stats, "weights": self.ema.state_dict(),
                    "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
+                   'pred_horizon': pred_horizon,
                    "iter_num": self.num_diffusion_iters}
         ema_path = path.replace("epoch", "ema")
         torch.save(params2, ema_path)

@@ -87,7 +87,7 @@ def sample_sequence(train_data, sequence_length,
 class EpisodicDataset(torch.utils.data.Dataset):
 
     # episode_ids, dataset_dir, camera_names, norm_stats, chunk_size
-    def __init__(self, path: str, obs_horizon: int = 2, action_horizon: int = 8, pred_horizon: int = 16):
+    def __init__(self, path: str, obs_horizon: int = 2, pred_horizon: int = 16):
         super(EpisodicDataset).__init__()
         dataset_root = zarr.open(path, 'r')
 
@@ -126,7 +126,6 @@ class EpisodicDataset(torch.utils.data.Dataset):
         self.stats = stats
         self.normalized_train_data = normalized_train_data
         self.pred_horizon = pred_horizon
-        self.action_horizon = action_horizon
         self.obs_horizon = obs_horizon
 
     def __len__(self):
@@ -151,8 +150,8 @@ class EpisodicDataset(torch.utils.data.Dataset):
         return nsample
 
 
-def build_dataloader(data_path: str, batch_size:int, obs_horizon: int = 2, action_horizon: int = 8, pred_horizon: int = 16):
-    dataset = EpisodicDataset(data_path, obs_horizon, action_horizon)
+def build_dataloader(data_path: str, batch_size:int, obs_horizon: int = 2, pred_horizon: int = 16):
+    dataset = EpisodicDataset(data_path, obs_horizon, pred_horizon)
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,

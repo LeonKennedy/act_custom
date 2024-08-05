@@ -113,6 +113,11 @@ class CameraGroup:
                 results[name] = img
         return results
 
+    def read_stack(self) -> np.ndarray:
+        imgs = self.read_sync()
+        img = np.stack([imgs['TOP'], imgs["LEFT"], imgs["RIGHT"]])
+        return img
+
     def show(self):
         while 1:
             imgs = self.read_sync()
