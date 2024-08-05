@@ -20,33 +20,10 @@ from tqdm.auto import tqdm
 from loguru import logger
 
 from camera import CameraGroup
-from data import EpisodicDataset, normalize_data, unnormalize_data
+from data import EpisodicDataset
 from dr import build_two_arm
-# from constant import dataset_path, pred_horizon, obs_horizon, action_horizon, action_dim
-from policy_diffusion import build_policy, get_noise_ddpm_schedule
+from policy_diffusion import build_policy
 from task_config import TASK_CONFIG
-
-num_diffusion_iters = 100
-
-# dataset = PushTImageDataset(
-#     dataset_path=dataset_path,
-#     pred_horizon=pred_horizon,
-#     obs_horizon=obs_horizon,
-#     action_horizon=action_horizon
-# )
-#
-# stats = dataset.stats
-
-noise_scheduler = DDPMScheduler(
-    num_train_timesteps=num_diffusion_iters,
-    # the choise of beta schedule has big impact on performance
-    # we found squared cosine works the best
-    beta_schedule='squaredcos_cap_v2',
-    # clip output to [-1,1] to improve stability
-    clip_sample=True,
-    # our network predicts noise (instead of denoised action)
-    prediction_type='epsilon'
-)
 
 
 def get_stats(data_path: str):
@@ -54,20 +31,12 @@ def get_stats(data_path: str):
     return data_set.stats
 
 
-def get_obs():
-    return np.zeros((1, 2, 14)), np.ones((1, 2, 4, 3, 240, 320))
-
-
-def done(action):
-    pass
-
-
 def build_and_load_policy(action_dim, ckpt_path: str):
     if os.path.exists(ckpt_path):
         params = torch.load(ckpt_path)
-        obs_horizon = 2
+        obs_horizon = params['obs_horizon']
         action_horizon = 8
-        policy = build_policy(obs_horizon, action_dim, params['stats'], params['weights'])
+        policy = build_policy(obs_horizon, action_dim, 3, params['iter_num'], params['stats'], params['weights'])
         return policy, obs_horizon, action_horizon
     raise FileNotFoundError("ckpt not found")
 
@@ -79,6 +48,10 @@ class Robo:
         self.angles = collections.deque(maxlen=obs_horizon)
         self.images = collections.deque(maxlen=obs_horizon)
         self.step_idx = 0
+
+    def free_master(self):
+        self.arm_left.master.free()
+        self.arm_right.master.free()
 
     def start(self):
         # free master
@@ -103,17 +76,18 @@ class Robo:
 
     def first(self):
         angles = self.read_angle()
-        imgs = self.camera.read_sync()
+        self.angles.append(angles)
         self.angles.append(angles)
         self.angles.append(angles)
 
-        img = np.stack([imgs['TOP'], imgs["FRONT"], imgs["LEFT"], imgs["RIGHT"]])
+        img = self.camera.read_stack()
         self.images.append(img)
         self.images.append(img)
-        return imgs, angles
+        self.images.append(img)
+        return img, angles
 
     def action(self, action):
-        FPS = 2
+        FPS = 4
         bit_width = 2
         for i, step in enumerate(action):
             start_tm = time.time()
@@ -123,10 +97,9 @@ class Robo:
             right_angle, right_grasper = step[7:13], step[13]
             self.arm_right.puppet.move_to(right_angle, bit_width)
 
-            imgs = self.camera.read_sync()
+            img = self.camera.read_stack()
             angles = self.read_angle()
             if i >= 5:
-                img = np.stack([imgs['TOP'], imgs["FRONT"], imgs["LEFT"], imgs["RIGHT"]])
                 self.images.append(img)
                 self.angles.append(angles)
 
@@ -144,23 +117,20 @@ def time_wait(fps: int, tm: float):
 def predict(args):
     policy, obs_horizon, action_horizon = build_and_load_policy(args.action_dim, args.ckpt)
     robo = Robo(obs_horizon)
-    # robo.start()
-
-    time.sleep(5)
+    robo.free_master()
+    # key = input("is move to start?[y/n]")
+    # if key == 'y':
+    #     robo.start()
+    policy.noise_scheduler.set_timesteps(10, device)
+    time.sleep(4)
     robo.first()
     while 1:
         obs_images, obs = robo.get_obs()  # (2, 4, 3, 240, 320)  (2, 14)
         tm = time.time()
-        action = policy.inference(obs_images, obs)
+        action = policy.inference(obs_images, obs, args.action_horizon)
         logger.info(f"inference time: {round(time.time() - tm, 4)}")
         robo.action(action)
         # (action_horizon, action_dim)
-
-    print('Score: ', max(rewards))
-
-    # visualize
-    # from IPython.display import Video
-    # vwrite('vis.mp4', imgs)
 
 
 if __name__ == "__main__":
@@ -171,6 +141,6 @@ if __name__ == "__main__":
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
-    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=2)
+    parser.add_argument('--action_horizon', type=int, default=8)
 
     predict(parser.parse_args())

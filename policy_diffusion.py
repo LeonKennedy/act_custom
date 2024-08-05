@@ -14,6 +14,7 @@ from typing import Union, Callable, Dict
 
 import numpy as np
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from diffusers.training_utils import EMAModel
 import torchvision
 from torch import nn
@@ -353,7 +354,8 @@ class DiffusionPolicy:
     def __init__(self, nets: nn.ModuleDict, num_diffusion_iters: int, stats: Dict):
         self.device = torch.device('cuda')
         nets.to(self.device)
-        self.noise_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
+        # self.noise_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
+        self.noise_scheduler = get_noise_ddim_schedule(num_diffusion_iters)
         self.num_diffusion_iters = num_diffusion_iters
         self.nets = nets
         self.stats = stats
@@ -372,7 +374,7 @@ class DiffusionPolicy:
 
         noise = torch.randn(naction.shape, device=self.device)
 
-        B = nagent_pos.shape[0] # (B, 16, 14)
+        B = nagent_pos.shape[0]  # (B, 16, 14)
         # sample a diffusion iteration for each data point
         timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (B,), device=self.device).long()
 
@@ -440,7 +442,7 @@ class DiffusionPolicy:
             for k in self.noise_scheduler.timesteps:
                 # predict noise
                 noise_pred = self.nets['noise_pred_net'](
-                    sample=naction, # (B, pred_horizon, 14)
+                    sample=naction,  # (B, pred_horizon, 14)
                     timestep=k,
                     global_cond=obs_cond
                 )  # (B, 16, action_dim)
@@ -493,7 +495,7 @@ def build_net(obs_horizon: int, action_dim: int, camera_cnt: int) -> nn.ModuleDi
     return nets
 
 
-def get_noise_ddpm_schedule(num_diffusion_iters: int = 100):
+def get_noise_ddpm_schedule(num_diffusion_iters: int = 100) -> DDPMScheduler:
     return DDPMScheduler(
         num_train_timesteps=num_diffusion_iters,
         # the choise of beta schedule has big impact on performance
@@ -504,6 +506,11 @@ def get_noise_ddpm_schedule(num_diffusion_iters: int = 100):
         # our network predicts noise (instead of denoised action)
         prediction_type='epsilon'
     )
+
+
+def get_noise_ddim_schedule(num_diffusion_iters) -> DDIMScheduler:
+    ddpm_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
+    return DDIMScheduler.from_config(ddpm_scheduler.config)
 
 
 def test_build_net(obs_horizon, action_dim, camera_cnt: int = 4):
