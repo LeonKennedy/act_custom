@@ -36,10 +36,11 @@ def run(args):
         print("load weight from", args.ckpt)
         params = torch.load(args.ckpt)
         obs_horizon = params["obs_horizon"]
-        iter_num = params["iter_num"]
         policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats, params['weights'])
         min_loss = params["loss"]
         current_epoch = params["epoch"]
+        del params['weights']
+        print(params)
     else:
         current_epoch = 0
         min_loss = np.inf
