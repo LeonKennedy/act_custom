@@ -31,10 +31,10 @@ SIM_TASK_CONFIGS = {
         'camera_names': ['top']
     },
     "test_grap": {
-        'dataset_dir': DATA_DIR + '/grap',
-        'num_episodes': 10,
+        'dataset_dir': './output/train_data.pkl',
+        'num_episodes': 100,
         'episode_len': 400,
-        'camera_names': ['top', "middle"]
+        'camera_names': ['top', "left", "right"]
     },
     "hang_bracelets": {
         'dataset_dir': './output/train_data.pkl',

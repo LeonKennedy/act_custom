@@ -161,7 +161,7 @@ def train_bc(train_dataloader, val_dataloader, config):
 
     policy = make_policy(policy_class, policy_config)
     policy.cuda()
-    load_ckpt(policy, "ckpt/policy_epoch_5900_seed_0.ckpt")
+    # load_ckpt(policy, "ckpt/policy_epoch_5900_seed_0.ckpt")
     optimizer = make_optimizer(policy_class, policy)
 
     train_history = []
