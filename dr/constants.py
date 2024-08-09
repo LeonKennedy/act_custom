@@ -9,10 +9,10 @@ if sys.platform == "darwin":
     GRASPER_NAME = '/dev/tty.wchusbserial14330'
     CAMERA_NAME = {"TOP": 1, "RIGHT": 0}
 else:
-    COM_LEFT = "COM3"
-    COM_RIGHT = "COM5"
-    TRIGGER_NAME = "COM10"
-    GRASPER_NAME = "COM11"
+    COM_LEFT = "COM7"
+    COM_RIGHT = "COM6"
+    TRIGGER_NAME = "COM3"
+    GRASPER_NAME = "COM4"
     CAMERA_NAME = {"TOP": 0, "RIGHT": 2, "LEFT": 1}
     BUTTON_NAME = "COM12"
 
@@ -27,4 +27,4 @@ IMAGE_H = 240
 TRIGGER_MOTOR_ID_LEFT = 2
 TRIGGER_MOTOR_ID_RIGHT = 4
 
-FPS = 8
+FPS = 20

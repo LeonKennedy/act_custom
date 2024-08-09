@@ -155,5 +155,6 @@ if __name__ == '__main__':
     # check_camera()
     # show()
     cg = CameraGroup()
+    # cg.read_stack()
     # test_async_with_sync()
     cg.show()

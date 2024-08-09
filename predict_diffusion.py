@@ -37,6 +37,8 @@ def build_and_load_policy(action_dim, ckpt_path: str):
         obs_horizon = params['obs_horizon']
         action_horizon = 8
         policy = build_policy(obs_horizon, action_dim, 3, params['iter_num'], params['stats'], params['weights'])
+        del params['weights']
+        print(params)
         return policy, obs_horizon, action_horizon
     raise FileNotFoundError("ckpt not found")
 
@@ -109,9 +111,7 @@ class Robo:
             self.step_idx += 1
 
 
-def time_wait(fps: int, tm: float):
-    while (time.time() - tm) < (1 / fps):
-        time.sleep(0.0001)
+
 
 
 def predict(args):

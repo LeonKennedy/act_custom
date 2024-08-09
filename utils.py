@@ -1,11 +1,13 @@
 import numpy as np
 import torch
 import os
-import h5py
+# import h5py
 from torch.utils.data import TensorDataset, DataLoader
 
-import IPython
-e = IPython.embed
+# import IPython
+
+# e = IPython.embed
+
 
 class EpisodicDataset(torch.utils.data.Dataset):
     def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats):
@@ -15,13 +17,13 @@ class EpisodicDataset(torch.utils.data.Dataset):
         self.camera_names = camera_names
         self.norm_stats = norm_stats
         self.is_sim = None
-        self.__getitem__(0) # initialize self.is_sim
+        self.__getitem__(0)  # initialize self.is_sim
 
     def __len__(self):
         return len(self.episode_ids)
 
     def __getitem__(self, index):
-        sample_full_episode = False # hardcode
+        sample_full_episode = False  # hardcode
 
         episode_id = self.episode_ids[index]
         dataset_path = os.path.join(self.dataset_dir, f'episode_{episode_id}.hdf5')
@@ -44,8 +46,8 @@ class EpisodicDataset(torch.utils.data.Dataset):
                 action = root['/action'][start_ts:]
                 action_len = episode_len - start_ts
             else:
-                action = root['/action'][max(0, start_ts - 1):] # hack, to make timesteps more aligned
-                action_len = episode_len - max(0, start_ts - 1) # hack, to make timesteps more aligned
+                action = root['/action'][max(0, start_ts - 1):]  # hack, to make timesteps more aligned
+                action_len = episode_len - max(0, start_ts - 1)  # hack, to make timesteps more aligned
 
         self.is_sim = is_sim
         padded_action = np.zeros(original_action_shape, dtype=np.float32)
@@ -94,12 +96,12 @@ def get_norm_stats(dataset_dir, num_episodes):
     # normalize action data
     action_mean = all_action_data.mean(dim=[0, 1], keepdim=True)
     action_std = all_action_data.std(dim=[0, 1], keepdim=True)
-    action_std = torch.clip(action_std, 1e-2, np.inf) # clipping
+    action_std = torch.clip(action_std, 1e-2, np.inf)  # clipping
 
     # normalize qpos data
     qpos_mean = all_qpos_data.mean(dim=[0, 1], keepdim=True)
     qpos_std = all_qpos_data.std(dim=[0, 1], keepdim=True)
-    qpos_std = torch.clip(qpos_std, 1e-2, np.inf) # clipping
+    qpos_std = torch.clip(qpos_std, 1e-2, np.inf)  # clipping
 
     stats = {"action_mean": action_mean.numpy().squeeze(), "action_std": action_std.numpy().squeeze(),
              "qpos_mean": qpos_mean.numpy().squeeze(), "qpos_std": qpos_std.numpy().squeeze(),
@@ -122,8 +124,10 @@ def load_data(dataset_dir, num_episodes, camera_names, batch_size_train, batch_s
     # construct dataset and dataloader
     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
     val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, shuffle=True, pin_memory=True,
+                                  num_workers=1, prefetch_factor=1)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, shuffle=True, pin_memory=True, num_workers=1,
+                                prefetch_factor=1)
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -140,6 +144,7 @@ def sample_box_pose():
 
     cube_quat = np.array([1, 0, 0, 0])
     return np.concatenate([cube_position, cube_quat])
+
 
 def sample_insertion_pose():
     # Peg
@@ -166,6 +171,7 @@ def sample_insertion_pose():
 
     return peg_pose, socket_pose
 
+
 ### helper functions
 
 def compute_dict_mean(epoch_dicts):
@@ -178,11 +184,13 @@ def compute_dict_mean(epoch_dicts):
         result[k] = value_sum / num_items
     return result
 
+
 def detach_dict(d):
     new_d = dict()
     for k, v in d.items():
         new_d[k] = v.detach()
     return new_d
+
 
 def set_seed(seed):
     torch.manual_seed(seed)

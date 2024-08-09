@@ -1,31 +1,82 @@
 import time
+from typing import List
 
-import serial
 import torch
 import numpy as np
 import os
 import pickle
 import argparse
-import matplotlib.pyplot as plt
-from einops import rearrange
-
-import cv2
-from scipy.ndimage import shift
+from loguru import logger
 
 from camera import CameraGroup
 from constants import DT, SIM_TASK_CONFIGS
-from dr.DrRobot import build_arm, build_puppet
 from utils import compute_dict_mean, set_seed, detach_dict  # helper functions
-# from my_utils import get_angle_all
 from policy import ACTPolicy
-from dr.constants import GRASPER_NAME, COM_NAME, BAUDRATE, FPS, IMAGE_H, IMAGE_W, CAMERA_TOP, CAMERA_RIGHT
-from visualize_episodes import save_videos
-from PIL import Image
-# from dr import DrEmpower_can, PuppetRight, GRASPER_NAME
+from dr import build_two_arm
+from dr.utils import fps_wait
+from dr.constants import FPS
+from task_config import TASK_CONFIG
 
-import IPython
 
-e = IPython.embed
+# import IPython
+#
+# e = IPython.embed
+
+
+class Robo:
+    def __init__(self):
+        self.arm_left, self.arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
+        self.camera = CameraGroup()
+        self.step_idx = 0
+        self.fps = FPS
+        self.bit_width = self.fps / 2
+
+    def free_master(self):
+        self.arm_left.master.free()
+        self.arm_right.master.free()
+
+    def start(self):
+        # free master
+        self.arm_left.master.free()
+        self.arm_right.master.free()
+        self.arm_left.puppet.move_to1([0, -10, -90, -20, 90, 0])
+        self.arm_right.puppet.move_to1([0, 0, 90, 0, -86, 0])
+
+    def read_angle(self) -> List:
+        _, left_angles = self.arm_left.get_all_angle()
+        left_grasper_angle = self.arm_left.grasper.read_angle()
+        _, right_angles = self.arm_right.get_all_angle()
+        right_grasper_angle = self.arm_right.grasper.read_angle()
+        angles = left_angles + [left_grasper_angle] + right_angles + [right_grasper_angle]
+        return angles
+
+    def first(self):
+        angles = self.read_angle()
+        self.angles.append(angles)
+        self.angles.append(angles)
+        self.angles.append(angles)
+
+        img = self.camera.read_stack()
+        self.images.append(img)
+        self.images.append(img)
+        self.images.append(img)
+        return img, angles
+
+    def action(self, action, s):
+        left_angle, left_grasper = action[:6], action[6]
+        self.arm_left.puppet.move_to(left_angle, self.bit_width)
+        self.arm_left.grasper.set_angle(left_grasper)
+        right_angle, right_grasper = action[7:13], action[13]
+        self.arm_right.puppet.move_to(right_angle, self.bit_width)
+
+        fps_wait(self.fps, s)
+        self.bit_width = 1 / (time.time() - s) / 2
+        logger.info(f"[{self.step_idx}] bit width {round(self.bit_width, 4)}")
+        self.step_idx += 1
+
+
+class RoboActionChunk(Robo):
+    pass
 
 
 def main(args):
@@ -76,38 +127,10 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-    ckpt_name = "policy_best_runtime.ckpt"
-    # ckpt_name = "policy_epoch_4200_seed_0.ckpt"
+    # ckpt_name = "policy_best_runtime.ckpt"
+    ckpt_name = "policy_epoch_7600_seed_0.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
-
-
-def make_policy(policy_config):
-    policy = ACTPolicy(policy_config)
-    return policy
-
-
-def make_optimizer(policy):
-    optimizer = policy.configure_optimizers()
-    return optimizer
-
-
-def get_image(ts, camera_names):
-    curr_images = []
-    for cam_name in camera_names:
-        curr_image = rearrange(ts.observation['images'][cam_name], 'h w c -> c h w')
-        curr_images.append(curr_image)
-    curr_image = np.stack(curr_images, axis=0)
-    curr_image = torch.from_numpy(curr_image / 255.0).float().cuda().unsqueeze(0)
-    return curr_image
-
-
-def init_camera(camera_id):
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)  # top
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap.set(3, IMAGE_W)
-    cap.set(4, IMAGE_H)
-    return cap
 
 
 def eval_bc(config, ckpt_name, save_episode=True):
@@ -117,9 +140,9 @@ def eval_bc(config, ckpt_name, save_episode=True):
     policy_config = config['policy_config']
 
     # load policy and stats
-    policy = make_policy(policy_config)
+    policy = ACTPolicy(policy_config)
     loading_status = policy.load_state_dict(torch.load(os.path.join(ckpt_dir, ckpt_name)))
-    print(loading_status)
+    print("loading status: ", loading_status)
     policy.cuda()
     policy.eval()
     print(f'Loaded: {ckpt_name}')
@@ -131,20 +154,19 @@ def eval_bc(config, ckpt_name, save_episode=True):
     post_process = lambda a: a * stats['action_std'] + stats['action_mean']
 
     # load environment
-    camera = CameraGroup()
-    dr = DrEmpower_can(com=COM_NAME, uart_baudrate=BAUDRATE)
-    puppet_left, puppet_right = build_puppet(dr)
+    robo = RoboActionChunk()
+    qpos = robo.read_angle()
 
-    flag = input("is need move to init?(t)")
-    if flag == 't':
-        puppet_left.move_to([-125.776, 20.996, -50.522, 8.501, 92.796, -40.213])
-        puppet_right.move_to([-50.962, -18.231, 47.637, -12.737, -95.001, 24.392])
+    # flag = input("is need move to init?(t)")
+    # if flag == 't':
+    #     puppet_left.move_to([-125.776, 20.996, -50.522, 8.501, 92.796, -40.213])
+    #     puppet_right.move_to([-50.962, -18.231, 47.637, -12.737, -95.001, 24.392])
 
     time.sleep(2)
 
     # clean flush
-    for i in range(3):
-        imgs = camera.read_sync()
+    # for i in range(3):
+    #     imgs = camera.read_sync()
 
     query_frequency = 1
     num_queries = policy_config['num_queries']
@@ -154,23 +176,17 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     t = 0
     while True:
-        # Observation
         start = time.time()
+        # Observation
 
         if t % query_frequency == 0:
-            images = camera.read_sync()
-            all_cam_images = np.stack([
-                images["TOP"],
-                images["FRONT"],
-                images["LEFT"],
-                images["RIGHT"]
-            ], axis=0)
+            all_cam_images = robo.camera.read_stack()
             image_data = torch.from_numpy(all_cam_images)
             image_data = torch.einsum('k h w c -> k c h w', image_data)
             image_data = image_data / 255.0
 
-            lp, rp, left_puppet_gripper, right_puppet_gripper = get_angle_all(dr)
-            qpos = np.array(lp + [left_puppet_gripper] + rp + [right_puppet_gripper]).astype(np.float32)
+            qpos = robo.read_angle()
+            qpos = np.array(qpos, dtype=np.float32)
             qpos_data = torch.from_numpy(qpos).float()
             qpos_data = pre_process(qpos_data)
 
@@ -186,7 +202,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
             all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
         else:
             all_time_actions[:-1] = all_time_actions[1:]
-            all_time_actions[max_timesteps-1, :num_queries] = all_actions.cpu().numpy()
+            all_time_actions[max_timesteps - 1, :num_queries] = all_actions.cpu().numpy()
 
         actions_for_curr_step = all_time_actions[:, 0]
         actions_populated = np.all(actions_for_curr_step != 0, axis=1)
@@ -195,33 +211,15 @@ def eval_bc(config, ckpt_name, save_episode=True):
         exp_weights = np.exp(-k * np.arange(len(actions_for_curr_step)))
         exp_weights = exp_weights / exp_weights.sum()
         exp_weights = exp_weights[:, np.newaxis]
-        # exp_weights = torch.from_numpy(exp_weights).unsqueeze(dim=1)
         raw_action = (actions_for_curr_step * exp_weights).sum(axis=0)
-        # raw_action = raw_action.squeeze(0).cpu().numpy()
         action = post_process(raw_action)
 
         ##  DOING ROBOTS
         # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
         print('当前指令:', action)
-        left_target = action[:6]
-        left_gripper_angle = action[6]
-        right_target = action[7:13]
-        right_gripper_angle = action[13]
-
-        print('目标位置:', left_target, right_target)
-
-        while (time.time() - start) < (1 / FPS):  # t/n=10, sleep 10毫秒
-            time.sleep(0.0001)
-        a = time.time() - start
-        bit_width = 1 / a / 2
-        puppet_left.move_to2(left_target, bit_width)
-        puppet_left.set_gripper(left_gripper_angle)
-        puppet_right.move_to2(right_target, bit_width)
-        puppet_right.set_gripper(right_gripper_angle)
+        robo.action(action, start)
 
         t += 1
-        if onscreen_render:
-            pass
 
         # if save_episode:
         #     save_videos(image_list, DT, video_path=os.path.join(ckpt_dir, f'video{rollout_id}.mp4'))

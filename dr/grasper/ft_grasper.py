@@ -78,6 +78,6 @@ class Grasper(Feite):
             print("%s" % self.packet_handler.getRxPacketError(scs_error))
 
 
-def build_grasper(config: Dict):
-    port_handler = PortHandler("COM11", 1_000_000)
+def build_grasper(port_name: str, config: Dict):
+    port_handler = PortHandler(port_name, 1_000_000)
     return Grasper(2, port_handler, config.get("left", None)), Grasper(1, port_handler, config.get("left", None))
