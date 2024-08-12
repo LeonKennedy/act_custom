@@ -1,5 +1,6 @@
 import pickle
 import os
+import sys
 
 import cv2
 import numpy as np
@@ -8,8 +9,7 @@ import random
 
 def get_all_file():
     all_file = []
-
-    for root, dirs, files in os.walk(os.path.join(data_path, "08_05"), topdown=False):
+    for root, dirs, files in os.walk(data_path, topdown=False):
         for name in files:
             if not name.endswith('.pkl'):
                 continue
@@ -24,10 +24,6 @@ def process():
     min_length = 40
     step = 1
 
-    # min_p = np.array([-30, 0, 0, -30, 20, 0])
-    # max_p = np.array([30, 100, 100, 10, 100, 1])
-    # min_p = 900
-    # max_p = 1350
     for file in get_all_file():
         datas = pickle.load(open(file, 'rb'))
         epsoide = {'name': file.split("/")[-1].split(".")[0],
@@ -80,5 +76,8 @@ def process():
 
 
 if __name__ == '__main__':
-    data_path = "./output"
-    process()
+    data_path = sys.argv[1]
+    if os.path.exists(data_path):
+        process()
+    else:
+        raise FileNotFoundError(f"{data_path} not found")
