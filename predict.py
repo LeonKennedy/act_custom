@@ -68,6 +68,7 @@ class Robo:
         self.arm_left.grasper.set_angle(left_grasper)
         right_angle, right_grasper = action[7:13], action[13]
         self.arm_right.puppet.move_to(right_angle, self.bit_width)
+        self.arm_right.grasper.set_angle(right_grasper)
 
         fps_wait(self.fps, s)
         self.bit_width = 1 / (time.time() - s) / 2
@@ -128,7 +129,7 @@ def main(args):
         'real_robot': True
     }
     # ckpt_name = "policy_best_runtime.ckpt"
-    ckpt_name = "policy_epoch_7600_seed_0.ckpt"
+    ckpt_name = "policy_epoch_6000_seed_0.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
@@ -155,18 +156,14 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
     # load environment
     robo = RoboActionChunk()
-    qpos = robo.read_angle()
 
     # flag = input("is need move to init?(t)")
     # if flag == 't':
     #     puppet_left.move_to([-125.776, 20.996, -50.522, 8.501, 92.796, -40.213])
     #     puppet_right.move_to([-50.962, -18.231, 47.637, -12.737, -95.001, 24.392])
+    robo.free_master()
 
     time.sleep(2)
-
-    # clean flush
-    # for i in range(3):
-    #     imgs = camera.read_sync()
 
     query_frequency = 1
     num_queries = policy_config['num_queries']
@@ -220,9 +217,6 @@ def eval_bc(config, ckpt_name, save_episode=True):
         robo.action(action, start)
 
         t += 1
-
-        # if save_episode:
-        #     save_videos(image_list, DT, video_path=os.path.join(ckpt_dir, f'video{rollout_id}.mp4'))
 
     return success_rate, avg_return
 

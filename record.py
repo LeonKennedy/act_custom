@@ -10,6 +10,7 @@
 """
 import os
 import pickle
+import sys
 import time
 from datetime import datetime
 import concurrent.futures
@@ -39,10 +40,14 @@ class Recorder:
         self.arm_right.clear_uart()
 
     def record(self):
-        k = input('two arm move to start position?(q)')
-        if k != 'q':
+        k = input('[DO FIRST]\n1. two arm move to start position?\n2. master move to puppet?(q)')
+        if k == '1':
             self.arm_left.move_start_position()
             self.arm_right.move_start_position()
+        elif k == '2':
+            self.master_to_puppet()
+        else:
+            pass
 
         self.arm_left.master.set_end_torque_zero()
         self.arm_right.master.set_end_torque_zero()
@@ -150,6 +155,12 @@ class Recorder:
 
         self.arm_left.lock()
         self.arm_right.lock()
+
+    def master_to_puppet(self):
+        lm, lp = self.arm_left.get_all_angle()
+        self.arm_left.master.move_to1(lp)
+        rm, rp = self.arm_right.get_all_angle()
+        self.arm_right.master.move_to1(rp)
 
 
 RUNNING_FLAG = False

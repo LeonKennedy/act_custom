@@ -70,8 +70,8 @@ def process():
     # train = epsoides[:int(len(epsoides) * train_ratio)]
     train = epsoides
     test = epsoides[int(len(epsoides) * train_ratio):]
-    pickle.dump(train, open(os.path.join(data_path, 'train_data.pkl'), 'wb'))
-    pickle.dump(test, open(os.path.join(data_path, 'test.pkl'), 'wb'))
+    pickle.dump(train, open(os.path.join('output', 'train_data.pkl'), 'wb'))
+    pickle.dump(test, open(os.path.join('output', 'test.pkl'), 'wb'))
     print("epsoide num: train", len(train), "test", len(test))
 
 
