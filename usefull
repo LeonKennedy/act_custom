@@ -9,6 +9,8 @@ python train.py --task_name move_cube --ckpt_dir ckpt2 --policy_class ACT --kl_w
 python imitate_episodes_daran.py --task_name hang_bracelets --ckpt_dir ckpt --policy_class ACT --kl_weight 10 --chunk_size 100 --hidden_dim 512 --batch_size 32 --dim_feedforward 3200 --lr 1e-5 --seed 0 --num_epochs 6000
 python imitate_episodes_daran.py --task_name test_grap --ckpt_dir ckpt --policy_class ACT --kl_weight 10 --chunk_size 50 --hidden_dim 512 --batch_size 32 --dim_feedforward 3200 --lr 1e-5 --seed 0 --num_epochs 6000
 
+python train.py --task_name test_grap --ckpt_dir ckpt --kl_weight 10 --chunk_size 50 --batch_size 32 --lr 1e-5 --seed 0 --num_epochs 6000 --ckpt ckpt/policy_last.ckpt
+
 # predict
 python .\predict.py --task_name move_cube --ckpt_dir ckpt --policy_class ACT --chunk_size 50 --hidden_dim 512 --batch_size 8 --dim_feedforward 3200 --lr 1e-5 --seed 0 --num_epochs 1000
 #python imitate_episodes_daran.py --task_name move_cube --ckpt_dir ckpt --policy_class ACT --kl_weight 10 --chunk_size 40 --hidden_dim 512 --batch_size 8 --dim_feedforward 3200 --lr 1e-5 --seed 0 --num_epochs 1000 --eval

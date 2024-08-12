@@ -67,7 +67,6 @@ def process():
 
     random.shuffle(epsoides)
     train_ratio = 0.9
-    # train = epsoides[:int(len(epsoides) * train_ratio)]
     train = epsoides
     test = epsoides[int(len(epsoides) * train_ratio):]
     pickle.dump(train, open(os.path.join('output', 'train_data.pkl'), 'wb'))
