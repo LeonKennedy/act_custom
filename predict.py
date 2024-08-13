@@ -84,7 +84,6 @@ def main(args):
     set_seed(1)
     # command line parameters
     ckpt_dir = args['ckpt_dir']
-    onscreen_render = args['onscreen_render']
     task_name = args['task_name']
     num_epochs = args['num_epochs']
 
@@ -121,7 +120,6 @@ def main(args):
         'episode_len': episode_len,
         'state_dim': state_dim,
         'lr': args['lr'],
-        'onscreen_render': onscreen_render,
         'policy_config': policy_config,
         'task_name': task_name,
         'seed': args['seed'],
@@ -129,7 +127,7 @@ def main(args):
         'real_robot': True
     }
     # ckpt_name = "policy_best_runtime.ckpt"
-    ckpt_name = "policy_epoch_6000_seed_0.ckpt"
+    ckpt_name = "policy_last.ckpt"
 
     success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
 
@@ -137,7 +135,6 @@ def main(args):
 def eval_bc(config, ckpt_name, save_episode=True):
     set_seed(0)
     ckpt_dir = config['ckpt_dir']
-    onscreen_render = config['onscreen_render']
     policy_config = config['policy_config']
 
     # load policy and stats
@@ -223,10 +220,7 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--onscreen_render', action='store_true')
     parser.add_argument('--ckpt_dir', type=str)
-    parser.add_argument('--policy_class', action='store', type=str, help='policy_class, capitalize', required=True)
     parser.add_argument('--task_name', action='store', type=str, help='task_name', default="test_grap")
     parser.add_argument('--batch_size', action='store', type=int, help='batch_size', default=8)
     parser.add_argument('--seed', action='store', type=int, help='seed', default=0)

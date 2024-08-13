@@ -2,7 +2,7 @@ import time
 
 from trigger import build_trigger
 from grasper import build_grasper
-from constants import TRIGGER_NAME
+from constants import TRIGGER_NAME, GRASPER_NAME
 
 
 def run():
@@ -16,6 +16,6 @@ def run():
 
 
 if __name__ == '__main__':
-    lf, rf = build_grasper({})
+    lf, rf = build_grasper(GRASPER_NAME, {})
     l, r = build_trigger(TRIGGER_NAME)
     run()

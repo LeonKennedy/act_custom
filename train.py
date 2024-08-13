@@ -6,7 +6,6 @@ import argparse
 import matplotlib.pyplot as plt
 from copy import deepcopy
 from tqdm import tqdm
-from einops import rearrange
 
 from my_utils import load_data  # data functions
 from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
@@ -26,7 +25,6 @@ def main(args):
     from constants import SIM_TASK_CONFIGS
     task_config = SIM_TASK_CONFIGS[task_name]
     dataset_dir = task_config['dataset_dir']
-    num_episodes = task_config['num_episodes']
     episode_len = task_config['episode_len']
     camera_names = task_config['camera_names']
 
@@ -95,6 +93,9 @@ def load_ckpt(policy, ckpt_path):
     a = torch.load(ckpt_path)
     policy.load_state_dict(a)
 
+
+def save_check_point(weight, state, name: str, loss: float):
+    pass
 
 def train_bc(train_dataloader, val_dataloader, config):
     num_epochs = config['num_epochs']
