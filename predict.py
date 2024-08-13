@@ -81,16 +81,12 @@ class RoboActionChunk(Robo):
 
 
 def main(args):
-    set_seed(1)
+    set_seed(0)
     # command line parameters
-    ckpt_dir = args['ckpt_dir']
     task_name = args['task_name']
-    num_epochs = args['num_epochs']
 
     # get task parameters
-
     task_config = SIM_TASK_CONFIGS[task_name]
-
     episode_len = task_config['episode_len']
     camera_names = task_config['camera_names']
 
@@ -115,8 +111,7 @@ def main(args):
                      }
 
     config = {
-        'num_epochs': num_epochs,
-        'ckpt_dir': ckpt_dir,
+        'ckpt': args['ckpt'],
         'episode_len': episode_len,
         'state_dim': state_dim,
         'lr': args['lr'],
@@ -126,27 +121,24 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-    # ckpt_name = "policy_best_runtime.ckpt"
-    ckpt_name = "policy_last.ckpt"
 
-    success_rate, avg_return = eval_bc(config, ckpt_name, save_episode=False)
+    success_rate, avg_return = eval_bc(config, save_episode=False)
 
 
-def eval_bc(config, ckpt_name, save_episode=True):
+def eval_bc(config, save_episode=True):
     set_seed(0)
-    ckpt_dir = config['ckpt_dir']
+    ckpt = config['ckpt']
     policy_config = config['policy_config']
 
     # load policy and stats
     policy = ACTPolicy(policy_config)
-    loading_status = policy.load_state_dict(torch.load(os.path.join(ckpt_dir, ckpt_name)))
+    params = torch.load(ckpt)
+    loading_status = policy.load_state_dict(params['weight'])
     print("loading status: ", loading_status)
     policy.cuda()
     policy.eval()
-    print(f'Loaded: {ckpt_name}')
-    stats_path = os.path.join(ckpt_dir, f'dataset_stats.pkl')
-    with open(stats_path, 'rb') as f:
-        stats = pickle.load(f)
+    print(f'Loaded: {ckpt}')
+    stats = params['stats']
 
     pre_process = lambda s_qpos: (s_qpos - stats['qpos_mean']) / stats['qpos_std']
     post_process = lambda a: a * stats['action_std'] + stats['action_mean']
@@ -215,12 +207,10 @@ def eval_bc(config, ckpt_name, save_episode=True):
 
         t += 1
 
-    return success_rate, avg_return
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt_dir', type=str)
+    parser.add_argument('--ckpt', type=str)
     parser.add_argument('--task_name', action='store', type=str, help='task_name', default="test_grap")
     parser.add_argument('--batch_size', action='store', type=int, help='batch_size', default=8)
     parser.add_argument('--seed', action='store', type=int, help='seed', default=0)
