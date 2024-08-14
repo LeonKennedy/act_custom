@@ -90,11 +90,12 @@ class EpisodicDataset(torch.utils.data.Dataset):
     def __init__(self, path: str, obs_horizon: int = 2, pred_horizon: int = 16):
         super(EpisodicDataset).__init__()
         dataset_root = zarr.open(path, 'r')
+        self.dataset_root = dataset_root
 
-        # float32, [0,1], (N, 4, 360, 640, 3)
-        train_image_data = dataset_root['data']['img'][:]
-        train_image_data = np.moveaxis(train_image_data, -1, 2)
-        # (N, 4, 3,360, 640)
+        # # float32, [0,1], (N, 4, 360, 640, 3)
+        # train_image_data = dataset_root['data']['img'][:]
+        # train_image_data = np.moveaxis(train_image_data, -1, 2)
+        # # (N, 4, 3, 360, 640)
 
         # (N, D)
         train_data = {
@@ -120,7 +121,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
             normalized_train_data[key] = normalize_data(data, stats[key])
 
         # images are already normalized
-        normalized_train_data['image'] = train_image_data
+        # normalized_train_data['image'] = train_image_data
 
         self.indices = indices
         self.stats = stats
@@ -142,10 +143,10 @@ class EpisodicDataset(torch.utils.data.Dataset):
             sample_start_idx=sample_start_idx,
             sample_end_idx=sample_end_idx
         )
+        sub_img = self.dataset_root["data"]["img"][buffer_start_idx:buffer_end_idx]
+        train_image_data = np.moveaxis(sub_img, -1, 2)
 
-        # discard unused observations
-        # nsample['image'] = (nsample['image'][:self.obs_horizon, :] / 255.0).astype(np.float32)
-        nsample['image'] = nsample['image'][:self.obs_horizon, :]
+        nsample['image'] = train_image_data[:self.obs_horizon, :]
         nsample['agent_pos'] = nsample['agent_pos'][:self.obs_horizon, :]
         return nsample
 

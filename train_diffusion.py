@@ -106,6 +106,6 @@ if __name__ == '__main__':
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
     parser.add_argument('--pred_horizon', action='store', type=int, help='action horizon', default=16)
     parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=3)
-    parser.add_argument("--iter_num", action='store', type=int, help='iter num', default=70)
+    parser.add_argument("--iter_num", action='store', type=int, help='iter num', default=50)
 
     run(parser.parse_args())

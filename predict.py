@@ -214,7 +214,6 @@ if __name__ == '__main__':
     parser.add_argument('--task_name', action='store', type=str, help='task_name', default="test_grap")
     parser.add_argument('--batch_size', action='store', type=int, help='batch_size', default=8)
     parser.add_argument('--seed', action='store', type=int, help='seed', default=0)
-    parser.add_argument('--num_epochs', action='store', type=int, help='num_epochs', default=2000)
     parser.add_argument('--lr', action='store', type=float, help='lr', default=1e-5)
 
     # for ACT

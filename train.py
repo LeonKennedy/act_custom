@@ -9,8 +9,7 @@ from tqdm import tqdm
 
 from my_utils import load_data  # data functions
 from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
-from policy import ACTPolicy, CNNMLPPolicy
-from dr.constants import STATE_DIM
+from policy import ACTPolicy
 
 
 def main(args):
@@ -53,7 +52,7 @@ def main(args):
         'ckpt_dir': ckpt_dir,
         'ckpt': args['ckpt'],
         'episode_len': episode_len,
-        'state_dim': STATE_DIM,
+        'state_dim': 14,
         'lr': args['lr'],
         'policy_config': policy_config,
         'task_name': task_name,
