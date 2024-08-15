@@ -93,8 +93,9 @@ class EpisodicDataset(torch.utils.data.Dataset):
         self.dataset_root = dataset_root
 
         # # float32, [0,1], (N, 4, 360, 640, 3)
-        # train_image_data = dataset_root['data']['img'][:]
-        # train_image_data = np.moveaxis(train_image_data, -1, 2)
+        # self.cache_length = 30000
+        # self.cache_img = dataset_root['data']['img'][:]
+        # self.cache_img = np.moveaxis(self.cache_img, -1, 2)
         # # (N, 4, 3, 360, 640)
 
         # (N, D)
@@ -143,23 +144,29 @@ class EpisodicDataset(torch.utils.data.Dataset):
             sample_start_idx=sample_start_idx,
             sample_end_idx=sample_end_idx
         )
-        sub_img = self.dataset_root["data"]["img"][buffer_start_idx:buffer_start_idx+self.obs_horizon]
-        train_image_data = np.moveaxis(sub_img, -1, 2)
-
-        nsample['image'] = train_image_data
+        img = self.dataset_root["data"]["img"][buffer_start_idx: buffer_start_idx + self.obs_horizon]
+        nsample['image'] = np.moveaxis(img, -1, 2)
         nsample['agent_pos'] = nsample['agent_pos'][:self.obs_horizon, :]
         return nsample
 
+    # def get_image_half_cache(self, start_idx: int, step: int):
+    #     if start_idx + step >= self.cache_length:
+    #         tmp = self.dataset_root["data"]["img"][start_idx: start_idx + step]
+    #         return np.moveaxis(tmp, -1, 2)
+    #     else:
+    #         return self.cache_img[start_idx: start_idx + step]
 
-def build_dataloader(data_path: str, batch_size:int, obs_horizon: int = 2, pred_horizon: int = 16):
+
+def build_dataloader(data_path: str, batch_size: int, obs_horizon: int = 2, pred_horizon: int = 16):
     dataset = EpisodicDataset(data_path, obs_horizon, pred_horizon)
+    print("data lenght", len(dataset))
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
         # accelerate cpu-gpu transfer
         pin_memory=True,
-        num_workers=4,
+        num_workers=5,
         # don't kill worker process afte each epoch
         persistent_workers=True
     )

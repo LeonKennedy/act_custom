@@ -179,7 +179,7 @@ def eval_bc(config, save_episode=True):
             with torch.inference_mode():
                 start = time.time()
                 all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
-                print('模型预测耗时:', (time.time() - start))
+                print(all_actions.shape, '模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
         all_time_actions[:, :-1] = all_time_actions[:, 1:]

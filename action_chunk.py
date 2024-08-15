@@ -13,3 +13,6 @@ class ActionChunk:
     def __init__(self, chunk_size, fixed_length):
         self.chunk_size = chunk_size
         self.fixed_length = fixed_length
+
+    def action(self, action):
+        pass

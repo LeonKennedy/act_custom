@@ -87,9 +87,9 @@ def run(args):
                 min_loss = current_loss
                 policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), current_loss, epoch_idx, obs_horizon,
                             pred_horizon)
-            if epoch_idx > 0 and epoch_idx % 100 == 0:
-                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), current_loss, epoch_idx,
-                            obs_horizon, pred_horizon)
+            # if epoch_idx > 0 and epoch_idx % 100 == 0:
+            policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), current_loss, epoch_idx,
+                        obs_horizon, pred_horizon)
             tglobal.set_postfix(loss=current_loss)
 
 
