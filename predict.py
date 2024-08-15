@@ -16,6 +16,7 @@ from dr import build_two_arm
 from dr.utils import fps_wait
 from dr.constants import FPS
 from task_config import TASK_CONFIG
+from action_chunk import ActionChunk
 
 
 # import IPython
@@ -134,11 +135,13 @@ def eval_bc(config, save_episode=True):
     policy = ACTPolicy(policy_config)
     params = torch.load(ckpt)
     loading_status = policy.load_state_dict(params['weight'])
+    del params['weight']
     print("loading status: ", loading_status)
     policy.cuda()
     policy.eval()
-    print(f'Loaded: {ckpt}')
+    print(f'Loaded: {ckpt}', params)
     stats = params['stats']
+    chunk_size = params['chunk_size']
 
     pre_process = lambda s_qpos: (s_qpos - stats['qpos_mean']) / stats['qpos_std']
     post_process = lambda a: a * stats['action_std'] + stats['action_mean']
@@ -157,9 +160,10 @@ def eval_bc(config, save_episode=True):
     query_frequency = 1
     num_queries = policy_config['num_queries']
 
-    max_timesteps = 40  # may increase for real-world tasks
-    all_time_actions = np.zeros([max_timesteps, num_queries, 14])
+    # max_timesteps = 40  # may increase for real-world tasks
+    # all_time_actions = np.zeros([max_timesteps, num_queries, 14])
 
+    chunker = ActionChunk(chunk_size)
     t = 0
     while True:
         start = time.time()
@@ -182,21 +186,23 @@ def eval_bc(config, save_episode=True):
                 print(all_actions.shape, '模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
-        all_time_actions[:, :-1] = all_time_actions[:, 1:]
-        if t < max_timesteps:
-            all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
-        else:
-            all_time_actions[:-1] = all_time_actions[1:]
-            all_time_actions[max_timesteps - 1, :num_queries] = all_actions.cpu().numpy()
 
-        actions_for_curr_step = all_time_actions[:, 0]
-        actions_populated = np.all(actions_for_curr_step != 0, axis=1)
-        actions_for_curr_step = actions_for_curr_step[actions_populated]
-        k = 0.01
-        exp_weights = np.exp(-k * np.arange(len(actions_for_curr_step)))
-        exp_weights = exp_weights / exp_weights.sum()
-        exp_weights = exp_weights[:, np.newaxis]
-        raw_action = (actions_for_curr_step * exp_weights).sum(axis=0)
+        raw_action = chunker.action_step(all_actions)
+        # all_time_actions[:, :-1] = all_time_actions[:, 1:]
+        # if t < max_timesteps:
+        #     all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()
+        # else:
+        #     all_time_actions[:-1] = all_time_actions[1:]
+        #     all_time_actions[max_timesteps - 1, :num_queries] = all_actions.cpu().numpy()
+        #
+        # actions_for_curr_step = all_time_actions[:, 0]
+        # actions_populated = np.all(actions_for_curr_step != 0, axis=1)
+        # actions_for_curr_step = actions_for_curr_step[actions_populated]
+        # k = 0.01
+        # exp_weights = np.exp(-k * np.arange(len(actions_for_curr_step)))
+        # exp_weights = exp_weights / exp_weights.sum()
+        # exp_weights = exp_weights[:, np.newaxis]
+        # raw_action = (actions_for_curr_step * exp_weights).sum(axis=0)
         action = post_process(raw_action)
 
         ##  DOING ROBOTS

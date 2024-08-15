@@ -26,6 +26,7 @@ from dr import build_two_arm
 from dr.utils import fps_wait
 from policy_diffusion import build_policy
 from task_config import TASK_CONFIG
+from action_chunk import ActionChunk
 
 
 def build_and_load_policy(action_dim, ckpt_path: str):
@@ -87,8 +88,7 @@ class Robo:
         return img, angles
 
     def action(self, action):
-        FPS = 4
-        bit_width = 2
+        bit_width = 5
         for i, step in enumerate(action):
             start_tm = time.time()
             left_angle, left_grasper = step[:6], step[6]
@@ -125,7 +125,7 @@ def predict(args):
         obs_images, obs = robo.get_obs()  # (2, 4, 3, 240, 320)  (2, 14)
         tm = time.time()
         action = policy.inference(obs_images, obs, args.action_horizon)
-        logger.info(f"inference time: {round(time.time() - tm, 4)}")
+        logger.info(f"inference time: {round(time.time() - tm, 4)}, {action.shape}")
         robo.action(action)
         # (action_horizon, action_dim)
 
