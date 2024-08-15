@@ -143,10 +143,10 @@ class EpisodicDataset(torch.utils.data.Dataset):
             sample_start_idx=sample_start_idx,
             sample_end_idx=sample_end_idx
         )
-        sub_img = self.dataset_root["data"]["img"][buffer_start_idx:buffer_end_idx]
+        sub_img = self.dataset_root["data"]["img"][buffer_start_idx:buffer_start_idx+self.obs_horizon]
         train_image_data = np.moveaxis(sub_img, -1, 2)
 
-        nsample['image'] = train_image_data[:self.obs_horizon, :]
+        nsample['image'] = train_image_data
         nsample['agent_pos'] = nsample['agent_pos'][:self.obs_horizon, :]
         return nsample
 
@@ -159,8 +159,9 @@ def build_dataloader(data_path: str, batch_size:int, obs_horizon: int = 2, pred_
         shuffle=True,
         # accelerate cpu-gpu transfer
         pin_memory=True,
+        num_workers=4,
         # don't kill worker process afte each epoch
-        # persistent_workers=True
+        persistent_workers=True
     )
 
     # visualize data in batch

@@ -182,7 +182,6 @@ def eval_bc(config, save_episode=True):
                 print('模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
-
         all_time_actions[:, :-1] = all_time_actions[:, 1:]
         if t < max_timesteps:
             all_time_actions[[t], :num_queries] = all_actions.cpu().numpy()

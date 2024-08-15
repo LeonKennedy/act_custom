@@ -15,6 +15,7 @@ import time
 
 import numpy as np
 import torch
+from diffusers import DDIMScheduler
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from tqdm.auto import tqdm
 from loguru import logger
@@ -22,13 +23,9 @@ from loguru import logger
 from camera import CameraGroup
 from data import EpisodicDataset
 from dr import build_two_arm
+from dr.utils import fps_wait
 from policy_diffusion import build_policy
 from task_config import TASK_CONFIG
-
-
-def get_stats(data_path: str):
-    data_set = EpisodicDataset(data_path)
-    return data_set.stats
 
 
 def build_and_load_policy(action_dim, ckpt_path: str):
@@ -37,6 +34,7 @@ def build_and_load_policy(action_dim, ckpt_path: str):
         obs_horizon = params['obs_horizon']
         action_horizon = 8
         policy = build_policy(obs_horizon, action_dim, 3, params['iter_num'], params['stats'], params['weights'])
+
         del params['weights']
         print(params)
         return policy, obs_horizon, action_horizon
@@ -105,13 +103,10 @@ class Robo:
                 self.images.append(img)
                 self.angles.append(angles)
 
-            time_wait(FPS, start_tm)
+            fps_wait(10, start_tm)
             bit_width = 1 / (time.time() - start_tm) / 2
             logger.info(f"[{self.step_idx}] bit width {round(bit_width, 4)}")
             self.step_idx += 1
-
-
-
 
 
 def predict(args):
@@ -121,7 +116,8 @@ def predict(args):
     # key = input("is move to start?[y/n]")
     # if key == 'y':
     #     robo.start()
-    policy.noise_scheduler.set_timesteps(10, device)
+    policy.noise_scheduler = DDIMScheduler.from_config(policy.noise_scheduler)
+    policy.noise_scheduler.set_timesteps(15, device)
     time.sleep(4)
     robo.first()
     while 1:
@@ -137,7 +133,6 @@ if __name__ == "__main__":
     device = torch.device('cuda')
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', action='store', type=str, help='ckpt dir', default="diff_ckpt/policy_epoch_best.ckpt")
-    parser.add_argument('--data_path', action='store', type=str, help='data path', default='./data/train.zarr')
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)

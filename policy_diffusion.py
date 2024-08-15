@@ -354,8 +354,7 @@ class DiffusionPolicy:
     def __init__(self, nets: nn.ModuleDict, num_diffusion_iters: int, stats: Dict):
         self.device = torch.device('cuda')
         nets.to(self.device)
-        # self.noise_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
-        self.noise_scheduler = get_noise_ddim_schedule(num_diffusion_iters)
+        self.noise_scheduler = get_noise_ddpm_schedule(num_diffusion_iters)
         self.num_diffusion_iters = num_diffusion_iters
         self.nets = nets
         self.stats = stats
@@ -434,10 +433,6 @@ class DiffusionPolicy:
             # initialize action from Guassian noise
             noisy_action = torch.randn((1, self.pred_horizon, nagent_poses.shape[2]), device=self.device)
             naction = noisy_action
-
-            # # init scheduler
-            # num_diffusion_iters = 100
-            # self.noise_scheduler.set_timesteps(num_diffusion_iters)
 
             for k in self.noise_scheduler.timesteps:
                 # predict noise
