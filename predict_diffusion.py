@@ -96,6 +96,7 @@ class Robo:
             self.arm_left.grasper.set_angle(left_grasper)
             right_angle, right_grasper = step[7:13], step[13]
             self.arm_right.puppet.move_to(right_angle, bit_width)
+            self.arm_right.grasper.set_angle(right_grasper)
 
             img = self.camera.read_stack()
             angles = self.read_angle()
@@ -116,7 +117,7 @@ def predict(args):
     # key = input("is move to start?[y/n]")
     # if key == 'y':
     #     robo.start()
-    policy.noise_scheduler = DDIMScheduler.from_config(policy.noise_scheduler)
+    policy.noise_scheduler = DDIMScheduler.from_config(policy.noise_scheduler.config)
     policy.noise_scheduler.set_timesteps(15, device)
     time.sleep(4)
     robo.first()
