@@ -20,13 +20,24 @@ SIM_TASK_CONFIGS = {
         'dataset_dir': './output/train_data.pkl',
         'num_episodes': 100,
         'episode_len': 400,
-        'camera_names': ['top', "left", "right"]
+        'camera_names': ['top', "left", "right"],
+        "grasper": {
+            "left": (0, 3000),
+            "right": (0, 3000)
+        }
     },
     "hang_bracelets": {
         'dataset_dir': './output/train_data.pkl',
         'num_episodes': 100,
         'episode_len': 400,
         'camera_names': ['top', "front", 'left', "right"]
+    },
+    "tea": {
+        'dataset_dir': './output/train_data.pkl',
+        "grasper": {
+            "left": (0, 3000),
+            "right": (0, 3000)
+        }
     }
 }
 

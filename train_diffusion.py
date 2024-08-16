@@ -35,7 +35,7 @@ def run(args):
     if os.path.exists(args.ckpt):
         print("load weight from", args.ckpt)
         params = torch.load(args.ckpt)
-        obs_horizon = params["obs_horizon"]
+        obs_horizon = 2
         policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats, params['weights'])
         min_loss = params["loss"]
         current_epoch = params["epoch"]
@@ -45,6 +45,7 @@ def run(args):
         current_epoch = 0
         min_loss = np.inf
         policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats)
+    save_data = {"obs_horizon": obs_horizon, 'pred_horizon': pred_horizon}
     policy.create_ema()
     optimizer = torch.optim.AdamW(params=policy.nets.parameters(), lr=1e-4, weight_decay=1e-6)
     lr_scheduler = get_scheduler(
@@ -83,13 +84,13 @@ def run(args):
                     tepoch.set_postfix(loss=loss_cpu)
 
             current_loss = np.mean(epoch_loss)
+            save_data['loss'] = current_loss
+            save_data['epoch'] = epoch_idx
             if current_loss < min_loss:
                 min_loss = current_loss
-                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), current_loss, epoch_idx, obs_horizon,
-                            pred_horizon)
+                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), save_data)
             # if epoch_idx > 0 and epoch_idx % 100 == 0:
-            policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), current_loss, epoch_idx,
-                        obs_horizon, pred_horizon)
+            policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), save_data)
             tglobal.set_postfix(loss=current_loss)
 
 
@@ -105,7 +106,7 @@ if __name__ == '__main__':
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
     parser.add_argument('--pred_horizon', action='store', type=int, help='action horizon', default=16)
-    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=3)
+    parser.add_argument('--obs_horizon', action='store', type=int, help='obs horizon', default=2)
     parser.add_argument("--iter_num", action='store', type=int, help='iter num', default=50)
 
     run(parser.parse_args())

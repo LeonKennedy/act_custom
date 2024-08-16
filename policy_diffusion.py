@@ -389,19 +389,15 @@ class DiffusionPolicy:
         # update Exponential Moving Average of the model weights
         self.ema.step(self.nets.parameters())
 
-    def save(self, path: str, loss: float, epoch: int, obs_horizon: int, pred_horizon: int):
-        params = {"stats": self.stats, "weights": self.nets.state_dict(),
-                  "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
-                  'pred_horizon': pred_horizon,
-                  "iter_num": self.num_diffusion_iters}
-        torch.save(params, path)
+    def save(self, path: str, save_data: dict):
+        save_data["weights"] = self.nets.state_dict()
+        save_data["iter_num"] = self.num_diffusion_iters
+        save_data["stats"] = self.stats
+        torch.save(save_data, path)
         print("save to", path)
-        params2 = {"stats": self.stats, "weights": self.ema.state_dict(),
-                   "loss": loss, "epoch": epoch, "obs_horizon": obs_horizon,
-                   'pred_horizon': pred_horizon,
-                   "iter_num": self.num_diffusion_iters}
+        save_data["weights"] = self.ema.state_dict()
         ema_path = path.replace("epoch", "ema")
-        torch.save(params2, ema_path)
+        torch.save(save_data, ema_path)
         print("save to", ema_path)
 
     ######     INFERENCE    ######

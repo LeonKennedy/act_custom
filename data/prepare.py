@@ -76,8 +76,8 @@ def main(path: str):
         print(f, len(master))
 
         # use next puppet for action
-        master = puppet[1:]
-        puppet = puppet[:-1]
+        # master = puppet[1:]
+        # puppet = puppet[:-1]
 
         image.append(image_data)
         action.append(master)

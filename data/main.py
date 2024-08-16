@@ -110,8 +110,8 @@ class EpisodicDataset(torch.utils.data.Dataset):
         # also handles padding
         indices = create_sample_indices(
             episode_ends=episode_ends,
-            sequence_length=pred_horizon,
-            pad_before=1,
+            sequence_length=pred_horizon + obs_horizon,
+            pad_before=0,
             pad_after=0)
 
         # compute statistics and normalized data to [-1,1]
@@ -147,6 +147,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
         img = self.dataset_root["data"]["img"][buffer_start_idx: buffer_start_idx + self.obs_horizon]
         nsample['image'] = np.moveaxis(img, -1, 2)
         nsample['agent_pos'] = nsample['agent_pos'][:self.obs_horizon, :]
+        nsample['action'] = nsample['action'][self.obs_horizon:, :]
         return nsample
 
     # def get_image_half_cache(self, start_idx: int, step: int):
@@ -157,7 +158,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
     #         return self.cache_img[start_idx: start_idx + step]
 
 
-def build_dataloader(data_path: str, batch_size: int, obs_horizon: int = 2, pred_horizon: int = 16):
+def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_horizon: int):
     dataset = EpisodicDataset(data_path, obs_horizon, pred_horizon)
     print("data lenght", len(dataset))
     dataloader = torch.utils.data.DataLoader(
@@ -183,4 +184,4 @@ if __name__ == '__main__':
     data_path = "train.zarr"
     # ds = EpisodicDataset(data_path)
     # print(ds.stats)
-    dl = build_dataloader(data_path, 8)
+    dl = build_dataloader(data_path, 8, 2, 16)

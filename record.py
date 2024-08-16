@@ -28,8 +28,12 @@ BUTTON_KEY = '5'
 class Recorder:
 
     def __init__(self, arm_left: Arm, arm_right: Arm):
-        self.folder_name = "%s" % (datetime.now().strftime("%m_%d"))
-        os.makedirs("output/%s" % self.folder_name, exist_ok=True)
+        task_data_path = f"output/{task_name}"
+        os.makedirs(task_data_path, exist_ok=True)
+        folder_name = "%s" % (datetime.now().strftime("%m_%d"))
+        self.save_path = f"{task_data_path}/{folder_name}"
+        os.makedirs(self.save_path, exist_ok=True)
+
         self.arm_left = arm_left
         self.arm_right = arm_right
         self.camera = CameraGroup()
@@ -145,8 +149,7 @@ class Recorder:
             episodes.append(episode)
 
         duration = time.time() - start_tm
-        f = 'output/%s/%s.pkl' % (self.folder_name, datetime.now().strftime("%m_%d_%H_%M_%S"))
-        pickle.dump(episodes, open(f, 'wb'))
+        f = f'{self.save_path}/{datetime.now().strftime("%m_%d_%H_%M_%S")}.pkl'
         print(f'save to {f}, length {len(episodes)} FPS {round(len(episodes) / duration, 2)}')
 
     def follow(self):
@@ -173,7 +176,8 @@ def _change_running_flag(event):
 
 
 if __name__ == '__main__':
-    arm_left, arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
+    task_name = sys.argv[1] if len(sys.argv) > 1 else 'default'
+    arm_left, arm_right = build_two_arm(TASK_CONFIG[task_name])
     r = Recorder(arm_left, arm_right)
     # button = Button(BUTTON_NAME, 9600)
     r.record()
