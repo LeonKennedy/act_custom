@@ -9,9 +9,10 @@
 @desc:
 """
 import pickle
-
+import cv2
 import torch
 import zarr
+import os
 import numpy as np
 
 
@@ -159,28 +160,6 @@ class EpisodicDataset(torch.utils.data.Dataset):
     #         return self.cache_img[start_idx: start_idx + step]
 
 
-class EpisodicDataset2(torch.utils.data.Dataset):
-
-    def __init__(self, data: dict, obs_horizon: int, pred_horizon: int):
-        super(EpisodicDataset).__init__()
-        self.data = data
-        self.obs_horizon = obs_horizon
-        self.pred_horizon = pred_horizon
-
-    def __len__(self):
-        return len(self.files)
-
-    def __getitem__(self, idx):
-        print(1)
-        return self.cache_img[idx]
-
-
-def build_datasets(path):
-    files = pickle.load(open(path, 'rb'))
-    for data in files:
-        pass
-
-
 def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_horizon: int):
     dataset = EpisodicDataset(data_path, obs_horizon, pred_horizon)
     print("data lenght", len(dataset))
@@ -203,9 +182,95 @@ def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_hor
     return dataloader, dataset.stats
 
 
+def _stack_img(images: dict, start_idx: int, step: int, camera_names: list):
+    all_img = []
+    for i in range(step):
+        step_img = []
+        for key in camera_names:
+            p = images[key][start_idx + i]
+            if os.path.exists(p):
+                step_img.append(cv2.imread(p))
+            else:
+                raise FileNotFoundError(p)
+        all_img.append(np.stack(step_img))
+    return np.stack(all_img)
+
+
+class EpisodicDataset2(torch.utils.data.Dataset):
+
+    def __init__(self, data: dict, obs_horizon: int, pred_horizon: int, camera_names: list, stats: dict):
+        super(EpisodicDataset).__init__()
+        self.data = data
+        self.obs_horizon = obs_horizon
+        self.pred_horizon = pred_horizon
+        self.camera_names = camera_names
+
+        normalized_data = {}
+        normalized_data['qpos'] = normalize_data(data['qpos'], stats['agent_pos'])
+        normalized_data['action'] = normalize_data(data['action'], stats['action'])
+        self.normalized_data = normalized_data
+
+    def __len__(self) -> int:
+        return self.data['qpos'].shape[0] - self.obs_horizon - self.pred_horizon
+
+    def __getitem__(self, idx):
+        imgs = _stack_img(self.data['image'], idx, self.obs_horizon, self.camera_names)
+        agent_pos = self.normalized_data['qpos'][idx: idx + self.obs_horizon]
+        action = self.normalized_data['action'][idx + self.obs_horizon: idx + self.obs_horizon + self.pred_horizon]
+        return imgs, agent_pos, action
+
+
+def get_stats(files: list) -> dict:
+    tmp = {
+        'agent_pos': np.concatenate([data['qpos'] for data in files]),
+        'action': np.concatenate([data['action'] for data in files])
+    }
+    return {"agent_pos": get_data_stats(tmp['agent_pos']), "action": get_data_stats(tmp['action'])}
+
+
+def build_datasets(path, obs_horizon: int, pred_horizon: int, camera_names):
+    files = pickle.load(open(path, 'rb'))
+    all_ds = []
+    stats = get_stats(files)
+    for data in files:
+        ds = EpisodicDataset2(data, obs_horizon, pred_horizon, camera_names, stats)
+        all_ds.append(ds)
+    return all_ds, stats
+
+
+def collate_fn(x):
+    image = np.stack([x[i][0] for i in range(len(x))])
+    image = np.moveaxis(image, -1, 2)
+    pos = np.stack([x[i][1] for i in range(len(x))], dtype=np.float32)
+    action = np.stack([x[i][2] for i in range(len(x))])
+    return {
+        "image": torch.from_numpy(image),
+        "agent_pos": torch.from_numpy(pos),
+        "action": torch.from_numpy(action)
+    }
+
+
+def build_dataloader2(path: str, batch_size: int, obs_horizon: int, pred_horizon: int):
+    camera_names = ['top', 'left', 'right']
+    all_ds, stats = build_datasets(path, obs_horizon, pred_horizon, camera_names)
+    dataloader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(all_ds),
+        batch_size=batch_size,
+        shuffle=True,
+        # accelerate cpu-gpu transfer
+        pin_memory=True,
+        num_workers=10,
+        # # don't kill worker process afte each epoch
+        persistent_workers=True,
+        collate_fn=collate_fn
+    )
+    return dataloader, stats
+
+
 if __name__ == '__main__':
     data_path = "train.zarr"
-    ds = EpisodicDataset2("../output/train_data.pkl")
-    print(ds[1])
-    # print(ds.stats)
     # dl = build_dataloader(data_path, 8, 2, 16)
+    # print(ds.stats)
+    dl = build_dataloader2("../output/train_data.pkl", 8, 2, 16)
+    for nbatch in dl:
+        print(nbatch)

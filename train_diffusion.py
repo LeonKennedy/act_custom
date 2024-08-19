@@ -18,7 +18,7 @@ from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
 import numpy as np
 
-from data import build_dataloader
+from data import build_dataloader2
 from policy_diffusion import build_policy
 
 
@@ -31,7 +31,7 @@ def run(args):
     iter_num = args.iter_num
     camera_cnt = 3
 
-    dataloader, stats = build_dataloader(args.data_path, args.batch_size, obs_horizon, pred_horizon)
+    dataloader, stats = build_dataloader2(args.data_path, args.batch_size, obs_horizon, pred_horizon)
     if os.path.exists(args.ckpt):
         print("load weight from", args.ckpt)
         params = torch.load(args.ckpt)
@@ -55,7 +55,7 @@ def run(args):
         num_training_steps=len(dataloader) * num_epochs
     )
 
-    with tqdm(range(current_epoch, current_epoch + num_epochs), desc='Epoch') as tglobal:
+    with tqdm(range(current_epoch, current_epoch + num_epochs), desc=f'Epoch {current_epoch}') as tglobal:
         for epoch_idx in tglobal:
             epoch_loss = list()
             with tqdm(dataloader, desc='Batch', leave=False) as tepoch:
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_dir', action='store', type=str, help='ckpt dir', default="./diff_ckpt")
     parser.add_argument('--batch_size', action='store', type=int, help='batch size', default=64)
     parser.add_argument('--num_epochs', action='store', type=int, help='num epochs', default=100)
-    parser.add_argument('--data_path', action='store', type=str, help='data path', default='./data/train.zarr')
+    parser.add_argument('--data_path', action='store', type=str, help='data path', default='./output/train_data.pkl')
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
