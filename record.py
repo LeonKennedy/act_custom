@@ -20,7 +20,7 @@ import keyboard
 from dr import build_two_arm, Arm, fps_wait
 from dr.constants import FPS
 from camera import CameraGroup
-from task_config import TASK_CONFIG
+from constants import SIM_TASK_CONFIGS
 
 BUTTON_KEY = '5'
 
@@ -150,6 +150,7 @@ class Recorder:
 
         duration = time.time() - start_tm
         f = f'{self.save_path}/{datetime.now().strftime("%m_%d_%H_%M_%S")}.pkl'
+        pickle.dump(episodes, open(f, 'wb'))
         print(f'save to {f}, length {len(episodes)} FPS {round(len(episodes) / duration, 2)}')
 
     def follow(self):
@@ -177,7 +178,7 @@ def _change_running_flag(event):
 
 if __name__ == '__main__':
     task_name = sys.argv[1] if len(sys.argv) > 1 else 'default'
-    arm_left, arm_right = build_two_arm(TASK_CONFIG[task_name])
+    arm_left, arm_right = build_two_arm(SIM_TASK_CONFIGS[task_name])
     r = Recorder(arm_left, arm_right)
     # button = Button(BUTTON_NAME, 9600)
     r.record()

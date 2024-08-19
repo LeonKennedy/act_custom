@@ -25,8 +25,7 @@ from data import EpisodicDataset
 from dr import build_two_arm
 from dr.utils import fps_wait
 from policy_diffusion import build_policy
-from task_config import TASK_CONFIG
-from action_chunk import ActionChunk
+from constants import SIM_TASK_CONFIGS
 
 
 def build_and_load_policy(action_dim, ckpt_path: str):
@@ -44,7 +43,7 @@ def build_and_load_policy(action_dim, ckpt_path: str):
 
 class Robo:
     def __init__(self, obs_horizon: int):
-        self.arm_left, self.arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
+        self.arm_left, self.arm_right = build_two_arm(SIM_TASK_CONFIGS["test_grap"]['grasper'])
         self.camera = CameraGroup()
         self.angles = collections.deque(maxlen=obs_horizon)
         self.images = collections.deque(maxlen=obs_horizon)

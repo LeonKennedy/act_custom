@@ -35,8 +35,8 @@ SIM_TASK_CONFIGS = {
     "tea": {
         'dataset_dir': './output/train_data.pkl',
         "grasper": {
-            "left": (0, 3000),
-            "right": (0, 3000)
+            "left": (0, 3300),
+            "right": (0, 3300)
         }
     }
 }
