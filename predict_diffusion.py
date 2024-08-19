@@ -21,7 +21,6 @@ from tqdm.auto import tqdm
 from loguru import logger
 
 from camera import CameraGroup
-from data import EpisodicDataset
 from dr import build_two_arm
 from dr.utils import fps_wait
 from policy_diffusion import build_policy
@@ -112,22 +111,23 @@ def predict(args):
     #     robo.start()
     chunker = ActionChunk(16)
     policy.noise_scheduler = DDIMScheduler.from_config(policy.noise_scheduler.config)
-    policy.noise_scheduler.set_timesteps(15, device)
+    policy.noise_scheduler.set_timesteps(17, device)
     time.sleep(4)
     robo.first()
     tm = time.time()
     while 1:
         obs_images, obs = robo.get_obs()  # (2, 4, 3, 240, 320)  (2, 14)
-        action = policy.inference(obs_images, obs, args.action_horizon)
-        logger.info(f"inference time: {round(time.time() - tm, 4)}, {action.shape}")
+        pred_action = policy.inference(obs_images, obs, args.action_horizon)
+        logger.info(f"inference time: {round(time.time() - tm, 4)}, {pred_action.shape}")
 
-        action = chunker.action_step(action)
+        action = chunker.action_step(pred_action)
         for _ in range(args.action_horizon + 1):
             fps_wait(10, tm)
             bit = 1 / (time.time() - tm) / 2
             robo.action(action, bit)
             tm = time.time()
             action = chunker.step()
+        print("one inference end")
         # robo.action(action)
         # (action_horizon, action_dim)
 
@@ -135,10 +135,10 @@ def predict(args):
 if __name__ == "__main__":
     device = torch.device('cuda')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', action='store', type=str, help='ckpt dir', default="diff_ckpt/policy_epoch_best.ckpt")
+    parser.add_argument('--ckpt', action='store', type=str, help='ckpt dir', default="diff_ckpt/policy_epoch_54.ckpt")
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
-    parser.add_argument('--action_horizon', type=int, default=16)
+    parser.add_argument('--action_horizon', type=int, default=8)
 
     predict(parser.parse_args())
