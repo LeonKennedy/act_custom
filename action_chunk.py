@@ -28,12 +28,14 @@ class ActionChunk:
         return self.get_action()
 
     def action_step(self, action):
+        if not isinstance(action, np.ndarray):
+            action = action.cpu().numpy()[0]
         self.all_time_actions[:, :-1] = self.all_time_actions[:, 1:]
         if self.t < self.all_time_actions.shape[0]:
-            self.all_time_actions[self.t] = action.cpu().numpy()[0]
+            self.all_time_actions[self.t] = action
         else:
             self.all_time_actions[:-1] = self.all_time_actions[1:]
-            self.all_time_actions[-1] = action.cpu().numpy()[0]
+            self.all_time_actions[-1] = action
         self.t += 1
         return self.get_action()
 
