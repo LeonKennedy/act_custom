@@ -121,14 +121,12 @@ def predict(args):
         logger.info(f"inference time: {round(time.time() - tm, 4)}, {pred_action.shape}")
 
         action = chunker.action_step(pred_action)
-        print(action)
         for _ in range(args.action_horizon + 1):
             fps_wait(10, tm)
             bit = 1 / (time.time() - tm) / 2
             robo.action(action, bit)
             tm = time.time()
             action = chunker.step()
-            print(action)
         print("one inference end")
         # robo.action(action)
         # (action_horizon, action_dim)
