@@ -26,6 +26,7 @@ from dr import build_two_arm
 from dr.utils import fps_wait
 from policy_diffusion import build_policy
 from constants import SIM_TASK_CONFIGS
+from action_chunk import ActionChunk
 
 
 def build_and_load_policy(action_dim, ckpt_path: str):
@@ -86,27 +87,20 @@ class Robo:
         self.images.append(img)
         return img, angles
 
-    def action(self, action):
-        bit_width = 5
-        for i, step in enumerate(action):
-            start_tm = time.time()
-            left_angle, left_grasper = step[:6], step[6]
-            self.arm_left.puppet.move_to(left_angle, bit_width)
-            self.arm_left.grasper.set_angle(left_grasper)
-            right_angle, right_grasper = step[7:13], step[13]
-            self.arm_right.puppet.move_to(right_angle, bit_width)
-            self.arm_right.grasper.set_angle(right_grasper)
+    def action(self, step, bit_width):
+        left_angle, left_grasper = step[:6], step[6]
+        self.arm_left.puppet.move_to(left_angle, bit_width)
+        self.arm_left.grasper.set_angle(left_grasper)
+        right_angle, right_grasper = step[7:13], step[13]
+        self.arm_right.puppet.move_to(right_angle, bit_width)
+        self.arm_right.grasper.set_angle(right_grasper)
 
-            img = self.camera.read_stack()
-            angles = self.read_angle()
-            if i >= 5:
-                self.images.append(img)
-                self.angles.append(angles)
+        img = self.camera.read_stack()
+        angles = self.read_angle()
+        self.angles.append(angles)
+        self.images.append(img)
 
-            fps_wait(10, start_tm)
-            bit_width = 1 / (time.time() - start_tm) / 2
-            logger.info(f"[{self.step_idx}] bit width {round(bit_width, 4)}")
-            self.step_idx += 1
+        # self.step_idx += 1
 
 
 def predict(args):
@@ -116,16 +110,25 @@ def predict(args):
     # key = input("is move to start?[y/n]")
     # if key == 'y':
     #     robo.start()
+    chunker = ActionChunk(16)
     policy.noise_scheduler = DDIMScheduler.from_config(policy.noise_scheduler.config)
     policy.noise_scheduler.set_timesteps(15, device)
     time.sleep(4)
     robo.first()
+    tm = time.time()
     while 1:
         obs_images, obs = robo.get_obs()  # (2, 4, 3, 240, 320)  (2, 14)
-        tm = time.time()
         action = policy.inference(obs_images, obs, args.action_horizon)
         logger.info(f"inference time: {round(time.time() - tm, 4)}, {action.shape}")
-        robo.action(action)
+
+        action = chunker.action_step(action)
+        for _ in range(args.action_horizon + 1):
+            fps_wait(10, tm)
+            bit = 1 / (time.time() - tm) / 2
+            robo.action(action, bit)
+            tm = time.time()
+            action = chunker.step()
+        # robo.action(action)
         # (action_horizon, action_dim)
 
 
@@ -136,6 +139,6 @@ if __name__ == "__main__":
 
     # for DIFFUSION
     parser.add_argument('--action_dim', action='store', type=int, help='action dim', default=14)
-    parser.add_argument('--action_horizon', type=int, default=8)
+    parser.add_argument('--action_horizon', type=int, default=16)
 
     predict(parser.parse_args())

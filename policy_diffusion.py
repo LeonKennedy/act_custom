@@ -452,12 +452,12 @@ class DiffusionPolicy:
         action_pred = unnormalize_data(naction, self.stats['action'])
 
         # only take action_horizon number of actions
-        start = obs_horizon - 1
-        end = start + action_horizon
-        action = action_pred[start:end, :]
+        # start = obs_horizon - 1
+        # end = start + action_horizon
+        # action = action_pred[start:end, :]
         logger.info(
             f"time cost: {round(tm1 - start_tm, 4)}, vision encode {round(tm2 - tm1, 4)} noise {round(tm3 - tm2, 4)} end {round(time.time() - tm3), 4}")
-        return action
+        return action_pred
 
 
 def build_policy(obs_horizon: int, action_dim: int, camera_cnt: int, iter_num: int, stats: Dict,

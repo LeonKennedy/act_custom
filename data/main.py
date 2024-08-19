@@ -8,6 +8,7 @@
 @time: 2024/7/25 14:52
 @desc:
 """
+import pickle
 
 import torch
 import zarr
@@ -158,6 +159,28 @@ class EpisodicDataset(torch.utils.data.Dataset):
     #         return self.cache_img[start_idx: start_idx + step]
 
 
+class EpisodicDataset2(torch.utils.data.Dataset):
+
+    def __init__(self, data: dict, obs_horizon: int, pred_horizon: int):
+        super(EpisodicDataset).__init__()
+        self.data = data
+        self.obs_horizon = obs_horizon
+        self.pred_horizon = pred_horizon
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        print(1)
+        return self.cache_img[idx]
+
+
+def build_datasets(path):
+    files = pickle.load(open(path, 'rb'))
+    for data in files:
+        pass
+
+
 def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_horizon: int):
     dataset = EpisodicDataset(data_path, obs_horizon, pred_horizon)
     print("data lenght", len(dataset))
@@ -182,6 +205,7 @@ def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_hor
 
 if __name__ == '__main__':
     data_path = "train.zarr"
-    # ds = EpisodicDataset(data_path)
+    ds = EpisodicDataset2("../output/train_data.pkl")
+    print(ds[1])
     # print(ds.stats)
-    dl = build_dataloader(data_path, 8, 2, 16)
+    # dl = build_dataloader(data_path, 8, 2, 16)

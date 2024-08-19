@@ -35,7 +35,7 @@ def run(args):
     if os.path.exists(args.ckpt):
         print("load weight from", args.ckpt)
         params = torch.load(args.ckpt)
-        obs_horizon = 2
+        obs_horizon = params["obs_horizon"]
         policy = build_policy(obs_horizon, action_dim, camera_cnt, iter_num, stats, params['weights'])
         min_loss = params["loss"]
         current_epoch = params["epoch"]

@@ -67,7 +67,7 @@ def main(path: str):
     data = root.create_group("data")
     action = data.create_dataset("action", shape=(0, action_dim), chunks=(2000, -1), dtype=np.float32)
     agent_pos = data.create_dataset("state", shape=(0, state_dim), chunks=(2000, -1), dtype=np.float32)
-    image = data.create_dataset("img", shape=(0, camera_cnt, 240, 320, 3), chunks=(200, -1, -1, -1, -1), dtype=np.uint8)
+    image = data.create_dataset("img", shape=(0, camera_cnt, 240, 320, 3), chunks=(300, -1, -1, -1, -1), dtype=np.uint8)
     all_file = glob.glob(os.path.join(path, "*.pkl"))
     episode_ends = []
     for f in all_file:
