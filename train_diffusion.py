@@ -55,43 +55,42 @@ def run(args):
         num_training_steps=len(dataloader) * num_epochs
     )
 
-    with tqdm(range(current_epoch, current_epoch + num_epochs), desc=f'Epoch {current_epoch}') as tglobal:
-        for epoch_idx in tglobal:
-            epoch_loss = list()
-            with tqdm(dataloader, desc='Batch', leave=False) as tepoch:
-                for nbatch in tepoch:
-                    # data normalized in dataset
-                    # device transfer
-                    nimage = nbatch['image'][:, :obs_horizon].to(device)  # (B
-                    nagent_pos = nbatch['agent_pos'][:, :obs_horizon].to(device)  # (B)
-                    naction = nbatch['action'].to(device)  # (B
+    for epoch_idx in range(current_epoch, current_epoch + num_epochs):
+        epoch_loss = list()
+        with tqdm(dataloader, desc='Batch', leave=False) as tepoch:
+            for nbatch in tepoch:
+                # data normalized in dataset
+                # device transfer
+                nimage = nbatch['image'][:, :obs_horizon].to(device)  # (B
+                nagent_pos = nbatch['agent_pos'][:, :obs_horizon].to(device)  # (B)
+                naction = nbatch['action'].to(device)  # (B
 
-                    noise_pred, noise = policy.forward(nimage, nagent_pos, naction)
+                noise_pred, noise = policy.forward(nimage, nagent_pos, naction)
 
-                    # L2 loss
-                    loss = nn.functional.mse_loss(noise_pred, noise)
+                # L2 loss
+                loss = nn.functional.mse_loss(noise_pred, noise)
 
-                    # optimize
-                    loss.backward()
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    lr_scheduler.step()
+                # optimize
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                lr_scheduler.step()
 
-                    policy.ema_step()
-                    loss_cpu = loss.item()
+                policy.ema_step()
+                loss_cpu = loss.item()
 
-                    epoch_loss.append(loss_cpu)
-                    tepoch.set_postfix(loss=loss_cpu)
+                epoch_loss.append(loss_cpu)
+                tepoch.set_postfix(loss=loss_cpu)
 
-            current_loss = np.mean(epoch_loss)
-            save_data['loss'] = current_loss
-            save_data['epoch'] = epoch_idx
-            if current_loss < min_loss:
-                min_loss = current_loss
-                policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), save_data)
-            # if epoch_idx > 0 and epoch_idx % 100 == 0:
-            policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), save_data)
-            tglobal.set_postfix(loss=current_loss)
+        current_loss = np.mean(epoch_loss)
+        save_data['loss'] = current_loss
+        save_data['epoch'] = epoch_idx
+        if current_loss < min_loss:
+            min_loss = current_loss
+            policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_best.ckpt'), save_data)
+        # if epoch_idx > 0 and epoch_idx % 100 == 0:
+        policy.save(os.path.join(args.ckpt_dir, f'policy_epoch_{epoch_idx}.ckpt'), save_data)
+        print("epoch", epoch_idx, "loss", current_loss)
 
 
 if __name__ == '__main__':
