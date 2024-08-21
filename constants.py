@@ -17,7 +17,7 @@ SIM_TASK_CONFIGS = {
         'camera_names': ['top']
     },
     "test_grap": {
-        'dataset_dir': './output/train_data.pkl',
+        'dataset_file': './output/train_data.pkl',
         'num_episodes': 100,
         'episode_len': 400,
         'camera_names': ['top', "left", "right"],
@@ -27,17 +27,19 @@ SIM_TASK_CONFIGS = {
         }
     },
     "hang_bracelets": {
-        'dataset_dir': './output/train_data.pkl',
+        'dataset_file': './output/train_data.pkl',
         'num_episodes': 100,
         'episode_len': 400,
         'camera_names': ['top', "front", 'left', "right"]
     },
     "tea": {
-        'dataset_dir': './output/train_data.pkl',
+        'dataset_file': './output/tea/tea_train_data.pkl',
+        'test_dataset_file': './output/tea/tea_test_data.pkl',
         "grasper": {
-            "left": (0, 3300),
+            "left": (0, 3200),
             "right": (0, 3300)
-        }
+        },
+        'camera_names': ['top', 'left', "right"]
     }
 }
 

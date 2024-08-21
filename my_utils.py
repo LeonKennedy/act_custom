@@ -104,10 +104,10 @@ def get_norm_stats(dataset_dir):
     return stats
 
 
-def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val, chunk_size):
-    print(f'\nData from: {dataset_dir}\n')
+def load_data(dataset_file: str, camera_names, batch_size_train, batch_size_val, chunk_size):
+    print(f'\nData from: {dataset_file}\n')
     # obtain train test split
-    files = pickle.load(open(dataset_dir, 'rb'))
+    files = pickle.load(open(dataset_file, 'rb'))
     num_episodes = len(files)
     train_ratio = 0.9
     shuffled_indices = np.random.permutation(num_episodes)
@@ -117,13 +117,13 @@ def load_data(dataset_dir, camera_names, batch_size_train, batch_size_val, chunk
     print("train data length:", len(train_indices), "val data length:", len(val_indices))
 
     # obtain normalization stats for qpos and action
-    norm_stats = get_norm_stats(dataset_dir)
+    norm_stats = get_norm_stats(dataset_file)
 
     # construct dataset and dataloader
-    train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats, chunk_size)
-    val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats, chunk_size)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, pin_memory=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val + 2, pin_memory=True)
+    train_dataset = EpisodicDataset(train_indices, dataset_file, camera_names, norm_stats, chunk_size)
+    val_dataset = EpisodicDataset(val_indices, dataset_file, camera_names, norm_stats, chunk_size)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size_train, pin_memory=True, num_workers=10, persistent_workers=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size_val, pin_memory=True, num_workers=10, persistent_workers=True)
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -154,7 +154,7 @@ def set_seed(seed):
 
 
 if __name__ == '__main__':
-    local_data = "output/train_data.pkl"
+    local_data = "output/tea/tea_train_data.pkl"
     files = pickle.load(open(local_data, 'rb'))
     num_episodes = len(files)
     shuffled_indices = np.random.permutation(num_episodes)
@@ -164,7 +164,8 @@ if __name__ == '__main__':
     norm_stats = get_norm_stats(local_data)
 
     # construct dataset and dataloader
-    train_dataset = EpisodicDataset(train_indices, local_data, ["top", "right"], norm_stats)
+    train_dataset = EpisodicDataset(train_indices, local_data, ["top", "left", "right"], norm_stats, 100)
+    print(train_dataset[2])
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True,
                                   num_workers=8, prefetch_factor=1)
     for x in train_dataloader:

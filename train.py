@@ -17,15 +17,16 @@ def main(args):
     # command line parameters
     ckpt_dir = args['ckpt_dir']
     task_name = args['task_name']
+    ckpt_dir = os.path.join(ckpt_dir, task_name)
+    os.makedirs(ckpt_dir, exist_ok=True)
     batch_size_train = args['batch_size']
-    batch_size_val = args['batch_size']
+    batch_size_val = args['batch_size'] + 2
     num_epochs = args['num_epochs']
 
     # get task parameters
     from constants import SIM_TASK_CONFIGS
     task_config = SIM_TASK_CONFIGS[task_name]
-    dataset_dir = task_config['dataset_dir']
-    episode_len = task_config['episode_len']
+    dataset_file = task_config['dataset_file']
     camera_names = task_config['camera_names']
 
     # fixed parameters
@@ -51,7 +52,6 @@ def main(args):
         'num_epochs': num_epochs,
         'ckpt_dir': ckpt_dir,
         'ckpt': args['ckpt'],
-        'episode_len': episode_len,
         'state_dim': 14,
         'lr': args['lr'],
         'policy_config': policy_config,
@@ -60,7 +60,7 @@ def main(args):
         'camera_names': camera_names,
     }
 
-    train_dataloader, val_dataloader, stats, _ = load_data(dataset_dir, camera_names, batch_size_train,
+    train_dataloader, val_dataloader, stats, _ = load_data(dataset_file, camera_names, batch_size_train,
                                                            batch_size_val, args['chunk_size'])
 
     # save dataset stats
@@ -196,9 +196,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr', action='store', type=float, help='lr', default=1e-5)
 
     # for ACT
-    parser.add_argument('--kl_weight', action='store', type=int, help='KL Weight', required=False)
+    parser.add_argument('--kl_weight', action='store', type=int, help='KL Weight', required=True)
     parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', required=True)
     parser.add_argument('--hidden_dim', action='store', type=int, help='hidden_dim', default=512)
-    parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', default=3200)
+    parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', default=2800)
 
     main(vars(parser.parse_args()))
