@@ -9,7 +9,6 @@
 @desc:
 """
 import time
-from threading import Thread
 import concurrent.futures
 from typing import Dict
 from tqdm.auto import tqdm
@@ -106,7 +105,7 @@ class CameraGroup:
         results = {}
         for name, cap in self.caps.items():
             ret, img = cap.read()
-            assert ret
+            assert ret, f"{name} error"
             if name in ("LEFT", "RIGHT"):
                 results[name] = cv2.resize(img, (IMAGE_W, IMAGE_H))
             else:

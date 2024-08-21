@@ -403,7 +403,6 @@ class DiffusionPolicy:
     ######     INFERENCE    ######
     def inference(self, nimage, nagent_pos, action_horizon: int = 8) -> np.ndarray:
         start_tm = time.time()
-        obs_horizon = nagent_pos.shape[0]
         nagent_poses = normalize_data(nagent_pos, self.stats['agent_pos'])
 
         # device transfer
