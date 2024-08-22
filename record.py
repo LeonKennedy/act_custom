@@ -144,9 +144,12 @@ class Recorder:
             images = self.camera.read_sync()
 
         start_tm = time.time()
+        i = 0
         while RUNNING_FLAG:
             episode = self._record_episode()
-            episodes.append(episode)
+            if i % 2 == 0:
+                episodes.append(episode)
+            i += 1
 
         duration = time.time() - start_tm
         f = f'{self.save_path}/{datetime.now().strftime("%m_%d_%H_%M_%S")}.pkl'

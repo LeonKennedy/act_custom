@@ -182,7 +182,7 @@ def build_dataloader(data_path: str, batch_size: int, obs_horizon: int, pred_hor
     return dataloader, dataset.stats
 
 
-def _stack_img(images: dict, start_idx: int, step: int, camera_names: list):
+def _stack_img(images: dict, start_idx: int, step: int, camera_names: list) -> np.ndarray:
     all_img = []
     for i in range(step):
         step_img = []
@@ -240,7 +240,7 @@ def build_datasets(path, obs_horizon: int, pred_horizon: int, camera_names):
 
 def collate_fn(x):
     image = np.stack([x[i][0] for i in range(len(x))])
-    image = np.moveaxis(image, -1, 2)
+    image = np.moveaxis(image, -1, 2) / 255
     pos = np.stack([x[i][1] for i in range(len(x))], dtype=np.float32)
     action = np.stack([x[i][2] for i in range(len(x))])
     return {
@@ -267,10 +267,40 @@ def build_dataloader2(path: str, batch_size: int, obs_horizon: int, pred_horizon
     return dataloader, stats
 
 
+def build_dataloader3(path: str, test_path: str, batch_size: int, obs_horizon: int, pred_horizon: int,
+                      camera_names: list):
+    train_ds, stats = build_datasets(path, obs_horizon, pred_horizon, camera_names)
+    dataloader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(train_ds),
+        batch_size=batch_size,
+        shuffle=True,
+        # accelerate cpu-gpu transfer
+        pin_memory=True,
+        num_workers=10,
+        # # don't kill worker process afte each epoch
+        persistent_workers=True,
+        collate_fn=collate_fn
+    )
+    val_ds, _ = build_datasets(test_path, obs_horizon, pred_horizon, camera_names)
+    val_dataloader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(val_ds),
+        batch_size=batch_size,
+        shuffle=True,
+        # accelerate cpu-gpu transfer
+        pin_memory=True,
+        num_workers=10,
+        # # don't kill worker process afte each epoch
+        persistent_workers=True,
+        collate_fn=collate_fn
+    )
+    return dataloader, val_dataloader, stats
+
+
 if __name__ == '__main__':
     data_path = "train.zarr"
     # dl = build_dataloader(data_path, 8, 2, 16)
     # print(ds.stats)
-    dl = build_dataloader2("../output/train_data.pkl", 8, 2, 16)
+    # dl = build_dataloader2("../output/train_data.pkl", 8, 2, 16)
+    dl = build_dataloader3("../output/tea/tea_train_data.pkl", "../output/tea/tea_test_data.pkl", 8, 1, 100)
     for nbatch in dl:
         print(nbatch)

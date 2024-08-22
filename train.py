@@ -10,6 +10,7 @@ from tqdm import tqdm
 from my_utils import load_data  # data functions
 from my_utils import compute_dict_mean, set_seed, detach_dict  # helper functions
 from policy import ACTPolicy
+from data import build_dataloader3
 
 
 def main(args):
@@ -22,11 +23,11 @@ def main(args):
     batch_size_train = args['batch_size']
     batch_size_val = args['batch_size'] + 2
     num_epochs = args['num_epochs']
+    chunk_size = args['chunk_size']
 
     # get task parameters
     from constants import SIM_TASK_CONFIGS
     task_config = SIM_TASK_CONFIGS[task_name]
-    dataset_file = task_config['dataset_file']
     camera_names = task_config['camera_names']
 
     # fixed parameters
@@ -36,7 +37,7 @@ def main(args):
     dec_layers = 7
     nheads = 8
     policy_config = {'lr': args['lr'],
-                     'num_queries': args['chunk_size'],
+                     'num_queries': chunk_size,
                      'kl_weight': args['kl_weight'],
                      'hidden_dim': args['hidden_dim'],
                      'dim_feedforward': args['dim_feedforward'],
@@ -60,21 +61,33 @@ def main(args):
         'camera_names': camera_names,
     }
 
-    train_dataloader, val_dataloader, stats, _ = load_data(dataset_file, camera_names, batch_size_train,
-                                                           batch_size_val, args['chunk_size'])
+    # train_dataloader, val_dataloader, stats, _ = load_data(dataset_file, camera_names, batch_size_train,
+    #                                                        batch_size_val, args['chunk_size'])
+    train_dataloader, val_dataloader, stats = build_dataloader3(task_config['dataset_file'],
+                                                                   task_config['test_dataset_file'],
+                                                                   batch_size_train, 1, args['chunk_size'],
+                                                                   camera_names)
 
     # save dataset stats
-    os.makedirs(ckpt_dir, exist_ok=True)
-    stats_path = os.path.join(ckpt_dir, f'dataset_stats.pkl')
-    with open(stats_path, 'wb') as f:
-        pickle.dump(stats, f)
+    # os.makedirs(ckpt_dir, exist_ok=True)
+    # stats_path = os.path.join(ckpt_dir, f'dataset_stats.pkl')
+    # with open(stats_path, 'wb') as f:
+    #     pickle.dump(stats, f)
 
     save_data = {"stats": stats, "chunk_size": args['chunk_size']}
     train_bc(train_dataloader, val_dataloader, config, save_data)
 
 
 def forward_pass(data, policy):
-    image_data, qpos_data, action_data, is_pad = data
+    # image_data, qpos_data, action_data, is_pad = data
+    image_data = data["image"]
+    image_data = image_data.squeeze()
+    image_data = image_data.to(torch.float32)
+    qpos_data = data["agent_pos"]
+    qpos_data = qpos_data.squeeze()
+    action_data  = data["action"]
+    action_data = action_data.squeeze()
+    is_pad = torch.zeros(action_data.shape[:2]).bool()
     # print(image_data.shape, qpos_data.shape, action_data.shape, is_pad.shape)
     image_data, qpos_data, action_data, is_pad = image_data.cuda(), qpos_data.cuda(), action_data.cuda(), is_pad.cuda()
     return policy(qpos_data, image_data, action_data, is_pad)  # TODO remove None
@@ -142,20 +155,22 @@ def train_bc(train_dataloader, val_dataloader, config, save_data):
         # training
         policy.train()
         optimizer.zero_grad()
-        for batch_idx, data in enumerate(train_dataloader):
-            forward_dict = forward_pass(data, policy)
-            # backward
-            loss = forward_dict['loss']
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-            train_history.append(detach_dict(forward_dict))
-        epoch_summary = compute_dict_mean(train_history[(batch_idx + 1) * epoch:(batch_idx + 1) * (epoch + 1)])
-        epoch_train_loss = epoch_summary['loss']
-        summary_string = f'Train loss: {epoch_train_loss:.5f} '
-        for k, v in epoch_summary.items():
-            summary_string += f'{k}: {v.item():.4f} '
-        print(summary_string)
+        # for batch_idx, data in enumerate(train_dataloader):
+        with tqdm(train_dataloader, desc='Batch', leave=False) as tepoch:
+            for data in tepoch:
+                forward_dict = forward_pass(data, policy)
+                # backward
+                loss = forward_dict['loss']
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                train_history.append(detach_dict(forward_dict))
+            epoch_summary = compute_dict_mean(train_history[(batch_idx + 1) * epoch:(batch_idx + 1) * (epoch + 1)])
+            epoch_train_loss = epoch_summary['loss']
+            summary_string = f'Train loss: {epoch_train_loss:.5f} '
+            for k, v in epoch_summary.items():
+                summary_string += f'{k}: {v.item():.4f} '
+            tepoch.set_postfix(loss=summary_string)
 
     ckpt_path = os.path.join(ckpt_dir, f'policy_last.ckpt')
     save_check_point(policy.state_dict(), ckpt_path, save_data)
@@ -196,8 +211,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', action='store', type=float, help='lr', default=1e-5)
 
     # for ACT
-    parser.add_argument('--kl_weight', action='store', type=int, help='KL Weight', required=True)
-    parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', required=True)
+    parser.add_argument('--kl_weight', action='store', type=int, help='KL Weight', default=10)
+    parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', default=100)
     parser.add_argument('--hidden_dim', action='store', type=int, help='hidden_dim', default=512)
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', default=2800)
 

@@ -365,7 +365,7 @@ class DiffusionPolicy:
 
     def forward(self, nimage, nagent_pos, naction):
         # encoder vision features (B, obs, 512 *3)
-        image_features = image_embedding_sync(self.nets['vision_encoders'], nimage / 255)
+        image_features = image_embedding_sync(self.nets['vision_encoders'])
 
         # concatenate vision feature and low-dim obs # (B, obs, 1536 + 14)
         obs_features = torch.cat([image_features, nagent_pos], dim=-1)

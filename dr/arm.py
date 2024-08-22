@@ -37,10 +37,10 @@ class Arm:
 
     def follow(self, bit_width: float = 15):
         master_angles, puppet_angles = self.get_all_angle()
-        self.gravity(master_angles)
-        self.puppet.move_to(master_angles, bit_width)
         grasper_angle = self.grasper.read_angle()
         trigger_angle = self.grasper.ratio_to_angle(self.trigger.read())
+        self.gravity(master_angles)
+        self.puppet.move_to(master_angles, bit_width)
         self.grasper.set_angle(trigger_angle)
         return master_angles, trigger_angle, puppet_angles, grasper_angle
 

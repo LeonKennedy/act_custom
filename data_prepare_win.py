@@ -23,9 +23,6 @@ def get_all_file(raw_data_path: str):
 
 def process(all_files: list):
     epsoides = []
-    min_length = 40
-    step = 1
-
     for file in all_files:
         datas = pickle.load(open(file, 'rb'))
         epsoide = {'name': file.split("/")[-1].split(".")[0],
@@ -38,22 +35,19 @@ def process(all_files: list):
                    'qpos': [],
                    'action': []
                    }
-        if (len(datas)) < min_length:
+        if (len(datas)) < 40:
+            print("warning: ", file, len(datas), "less 40")
             continue
-        print(file, len(datas))
-        for j in range(len(datas)):
-            i = j
+        image_dir = os.path.join(raw_data_path, 'images')
+        os.makedirs(image_dir, exist_ok=True)
+
+        step = 2 if "08_21_" in file else 1
+        for i in range(0, len(datas), step):
             data = datas[i]
-            if i < len(datas) - step:
-                next_data = datas[i + step]
-            else:
-                next_data = datas[-1]
             epsoide['qpos'].append(data['left_puppet'] + data['right_puppet'])
-            epsoide['action'].append(next_data['left_puppet'] + next_data['right_puppet'])
+            epsoide['action'].append(data['left_master'] + data['right_master'])
 
             filename = os.path.basename(file).split(".")[0]
-            image_dir = os.path.join(raw_data_path, 'images')
-            os.makedirs(image_dir, exist_ok=True)
             for key, img in data['camera'].items():
                 img_name = os.path.join(image_dir, f"{filename}_{key}_{i}.jpg")
                 epsoide["image"][key.lower()].append(img_name)
@@ -62,8 +56,9 @@ def process(all_files: list):
 
         epsoide['qpos'] = np.array(epsoide['qpos'], dtype=np.float32)
         epsoide['action'] = np.array(epsoide['action'], dtype=np.float32)
-
+        print(file, "action shape:", epsoide['action'].shape, "qpos shape:", epsoide['qpos'].shape)
         epsoides.append(epsoide)
+
         # break
 
     random.shuffle(epsoides)
@@ -76,7 +71,8 @@ def process(all_files: list):
 
 
 if __name__ == '__main__':
-    task_name = sys.argv[1]
+    # task_name = sys.argv[1]
+    task_name = 'tea'
     conf = SIM_TASK_CONFIGS[task_name]
     train_data_path = conf['dataset_file']
     test_data_path = conf['test_dataset_file']

@@ -226,6 +226,6 @@ if __name__ == '__main__':
     parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', required=False, default=100)
     parser.add_argument('--hidden_dim', action='store', type=int, help='hidden_dim', required=False, default=512)
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', required=False,
-                        default=3200)
+                        default=2800)
 
     main(vars(parser.parse_args()))
