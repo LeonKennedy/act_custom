@@ -33,8 +33,8 @@ SIM_TASK_CONFIGS = {
         'camera_names': ['top', "front", 'left', "right"]
     },
     "tea": {
-        'dataset_file': './output/tea/tea_train_data.pkl',
-        'test_dataset_file': './output/tea/tea_test_data.pkl',
+        'dataset_file': './output/tea_train_data.pkl',
+        'test_dataset_file': './output/tea_test_data.pkl',
         "grasper": {
             "left": (0, 3200),
             "right": (0, 3300)

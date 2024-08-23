@@ -9,4 +9,6 @@
 @desc:
 """
 
-from .main import build_dataloader, normalize_data, unnormalize_data, EpisodicDataset, build_dataloader2, build_dataloader3
+from .main import normalize_data, unnormalize_data
+from .act import build_dataloader3
+from .diffusion import EpisodicDataset, build_dataloader2

@@ -38,6 +38,7 @@ def process(all_files: list):
         if (len(datas)) < 40:
             print("warning: ", file, len(datas), "less 40")
             continue
+        print(file)
         image_dir = os.path.join(raw_data_path, 'images')
         os.makedirs(image_dir, exist_ok=True)
 

@@ -1,21 +1,18 @@
 import time
 from typing import List
+import argparse
 
 import torch
 import numpy as np
-import os
-import pickle
-import argparse
 from loguru import logger
 
 from camera import CameraGroup
-from constants import DT, SIM_TASK_CONFIGS
-from utils import compute_dict_mean, set_seed, detach_dict  # helper functions
+from constants import SIM_TASK_CONFIGS
+from utils import set_seed  # helper functions
 from policy import ACTPolicy
 from dr import build_two_arm
 from dr.utils import fps_wait
 from dr.constants import FPS
-from task_config import TASK_CONFIG
 from action_chunk import ActionChunk
 
 
@@ -25,8 +22,8 @@ from action_chunk import ActionChunk
 
 
 class Robo:
-    def __init__(self):
-        self.arm_left, self.arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
+    def __init__(self, task_name: str):
+        self.arm_left, self.arm_right = build_two_arm(SIM_TASK_CONFIGS[task_name])
         self.camera = CameraGroup()
         self.step_idx = 0
         self.fps = FPS
@@ -88,7 +85,6 @@ def main(args):
 
     # get task parameters
     task_config = SIM_TASK_CONFIGS[task_name]
-    episode_len = task_config['episode_len']
     camera_names = task_config['camera_names']
 
     # fixed parameters
@@ -113,7 +109,6 @@ def main(args):
 
     config = {
         'ckpt': args['ckpt'],
-        'episode_len': episode_len,
         'state_dim': state_dim,
         'lr': args['lr'],
         'policy_config': policy_config,
