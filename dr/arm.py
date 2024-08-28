@@ -99,9 +99,9 @@ class ArmRight(Arm):
         self.puppet.move_to1(start)
 
 
-def build_two_arm(config: Dict) -> Tuple[Arm, Arm]:
+def build_two_arm() -> Tuple[Arm, Arm]:
     left_trigger, right_trigger = build_trigger(TRIGGER_NAME)
-    left_grasper, right_grasper = build_grasper(GRASPER_NAME, config.get("grasper", {}))
+    left_grasper, right_grasper = build_grasper(GRASPER_NAME)
     left_arm = ArmLeft(left_trigger, left_grasper)
     right_arm = ArmRight(right_trigger, right_grasper)
     return left_arm, right_arm

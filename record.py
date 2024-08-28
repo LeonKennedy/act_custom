@@ -14,6 +14,7 @@ import sys
 import time
 from datetime import datetime
 import concurrent.futures
+from pathlib import Path
 
 import keyboard
 
@@ -29,11 +30,8 @@ BUTTON_KEY = '5'
 class Recorder:
 
     def __init__(self, arm_left: Arm, arm_right: Arm):
-        task_data_path = f"output/{task_name}"
-        os.makedirs(task_data_path, exist_ok=True)
-        folder_name = "%s" % (datetime.now().strftime("%m_%d"))
-        self.save_path = f"{task_data_path}/{folder_name}"
-        os.makedirs(self.save_path, exist_ok=True)
+        self.save_path = "output/multi/%s" % datetime.now().strftime("%m_%d")
+        Path(self.save_path).mkdir(parents=True, exist_ok=True)
 
         self.arm_left = arm_left
         self.arm_right = arm_right
@@ -71,40 +69,40 @@ class Recorder:
             print('next episode？:', i)
             self.clear_uart()
 
-    def _async_record_episode(self, info=True):
-        start = time.time()
-        bit_width = 1 / FPS / 2
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exc:
-            left_future = exc.submit(self.arm_left.follow, (bit_width,))
-            right_future = exc.submit(self.arm_right.follow, bit_width)
-
-            left_master_angles, left_trigger_angle, left_puppet_angles, left_grasper_angle = left_future.result()
-            right_master_angles, right_trigger_angle, right_puppet_angles, right_grasper_angle = left_future.result()
-
-        images = self.camera.read_sync()
-        camera_cost = time.time() - start
-        episode = {
-            'left_master': left_master_angles + [left_trigger_angle],
-            'left_puppet': left_puppet_angles + [left_grasper_angle],
-            # 'left_trigger': left_master_trigger,
-            'right_master': right_master_angles + [right_trigger_angle],
-            'right_puppet': right_puppet_angles + [right_grasper_angle],
-            # 'right_trigger': right_master_trigger,
-
-            'camera': images,
-            'image_size': self.camera.image_size  # H * W * 3
-        }
-
-        while (time.time() - start) < (1 / FPS):
-            time.sleep(0.0001)
-        duration = time.time() - start
-        bit_width = 1 / duration / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
-
-        if info:
-            print(duration, "bit_width:", bit_width, "camera:", round(camera_cost, 4))
-            print("left", episode["left_master"], episode["left_puppet"])
-            print("right", episode["right_master"], episode["right_puppet"])
-        return episode
+    # def _async_record_episode(self, info=True):
+    #     start = time.time()
+    #     bit_width = 1 / FPS / 2
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exc:
+    #         left_future = exc.submit(self.arm_left.follow, (bit_width,))
+    #         right_future = exc.submit(self.arm_right.follow, bit_width)
+    #
+    #         left_master_angles, left_trigger_angle, left_puppet_angles, left_grasper_angle = left_future.result()
+    #         right_master_angles, right_trigger_angle, right_puppet_angles, right_grasper_angle = left_future.result()
+    #
+    #     images = self.camera.read_sync()
+    #     camera_cost = time.time() - start
+    #     episode = {
+    #         'left_master': left_master_angles + [left_trigger_angle],
+    #         'left_puppet': left_puppet_angles + [left_grasper_angle],
+    #         # 'left_trigger': left_master_trigger,
+    #         'right_master': right_master_angles + [right_trigger_angle],
+    #         'right_puppet': right_puppet_angles + [right_grasper_angle],
+    #         # 'right_trigger': right_master_trigger,
+    #
+    #         'camera': images,
+    #         'image_size': self.camera.image_size  # H * W * 3
+    #     }
+    #
+    #     while (time.time() - start) < (1 / FPS):
+    #         time.sleep(0.0001)
+    #     duration = time.time() - start
+    #     bit_width = 1 / duration / 2  # 时刻监控在 t>n * bit_time 情况下单条指令发送的时间
+    #
+    #     if info:
+    #         print(duration, "bit_width:", bit_width, "camera:", round(camera_cost, 4))
+    #         print("left", episode["left_master"], episode["left_puppet"])
+    #         print("right", episode["right_master"], episode["right_puppet"])
+    #     return episode
 
     def _record_episode(self, info=True):
         start = time.time()
@@ -183,8 +181,7 @@ def _change_running_flag(event):
 
 
 if __name__ == '__main__':
-    task_name = sys.argv[1] if len(sys.argv) > 1 else 'default'
-    arm_left, arm_right = build_two_arm(SIM_TASK_CONFIGS[task_name])
+    arm_left, arm_right = build_two_arm()
     r = Recorder(arm_left, arm_right)
     # button = Button(BUTTON_NAME, 9600)
     r.record()

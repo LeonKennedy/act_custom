@@ -1,9 +1,8 @@
 import time
 
-from button import Button
 from dr import build_two_arm
 from dr.constants import BUTTON_NAME
-from task_config import TASK_CONFIG
+from constants import SIM_TASK_CONFIGS
 
 
 def left_follow():
@@ -64,4 +63,4 @@ def follow():
 
 
 if __name__ == '__main__':
-    arm_left, arm_right = build_two_arm(TASK_CONFIG["Pick_Cube"])
+    arm_left, arm_right = build_two_arm(SIM_TASK_CONFIGS['tea'])

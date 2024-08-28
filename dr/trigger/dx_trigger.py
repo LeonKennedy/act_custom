@@ -18,6 +18,9 @@ class ReadAttribute(enum.Enum):
     BAUDRATE = 8
 
 
+MIN_PWM, MAX_PWM = 50, 800
+
+
 class Dynamixel:
     ADDR_TORQUE_ENABLE = 64
     ADDR_GOAL_POSITION = 116
@@ -74,6 +77,13 @@ class Dynamixel:
                 return self._read_value(motor_id, attribute, num_bytes, tries=tries - 1)
         return value
 
+    def _write_value(self, motor_id, attribute, value):
+        dxl_comm_result, dxl_error = self.packetHandler.write2ByteTxRx(self.portHandler, motor_id, attribute, value)
+        if dxl_comm_result != COMM_SUCCESS:
+            raise ConnectionError(f'dxl_comm_result {dxl_comm_result} for servo {motor_id} value {value}')
+        if dxl_error != 0:
+            raise Exception(f'Failed to write value from motor {motor_id} error is {dxl_error}')
+
     def read_temperature(self, motor_id: int):
         return self._read_value(motor_id, ReadAttribute.TEMPERATURE, 1)
 
@@ -96,8 +106,12 @@ class Dynamixel:
     def read_position_radians(self, motor_id: int) -> float:
         return (self.read_position(motor_id) / 4096) * 2 * math.pi
 
+    def write_pwm(self, motor_id: int, value):
+        limit_value = min(max(MIN_PWM, value), MAX_PWM)
+        self._write_value(motor_id, Dynamixel.ADDR_GOAL_PWM, limit_value)
 
-RANGE = {2: (1700, 1700+600), 4: (1700, 1700+600)}
+
+RANGE = {2: (1700, 1700 + 600), 4: (1700, 1700 + 600)}
 
 
 class Trigger(Dynamixel):
@@ -114,6 +128,9 @@ class Trigger(Dynamixel):
 
     def position(self) -> int:
         return self.read_position(self.motor_id)
+
+    def set_pwm(self, value):
+        self.write_pwm(self.motor_id, round(value))
 
 
 def build_trigger(device_name="COM10") -> Tuple[Trigger, Trigger]:

@@ -88,6 +88,11 @@ class sms_sts(protocol_packet_handler):
         moving, scs_comm_result, scs_error = self.read1ByteTxRx(scs_id, SMS_STS_MOVING)
         return moving, scs_comm_result, scs_error
 
+    def ReadLoad(self, scs_id):
+        load, scs_comm_result, scs_error = self.read2ByteTxRx(scs_id, SMS_STS_PRESENT_LOAD_L)
+        return self.scs_tohost(load, 15), scs_comm_result, scs_error
+
+
     def SyncWritePosEx(self, scs_id, position, speed, acc):
         txpacket = [acc, self.scs_lobyte(position), self.scs_hibyte(position), 0, 0, self.scs_lobyte(speed),
                     self.scs_hibyte(speed)]

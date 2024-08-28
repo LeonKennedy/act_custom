@@ -1,5 +1,5 @@
 import msvcrt
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 from .scservo_sdk import PortHandler, sms_sts, COMM_SUCCESS
 
@@ -40,12 +40,21 @@ class Feite:
         if scs_error != 0:
             print("%s" % self.packet_handler.getRxPacketError(scs_error))
 
+    def read_torque(self) -> int:
+        scs_model_number, scs_comm_result, scs_error = self.packet_handler.ReadLoad(self.sid)
+        if scs_comm_result != COMM_SUCCESS:
+            print("%s" % self.packet_handler.getTxRxResult(scs_comm_result))
+        else:
+            return scs_model_number
+        if scs_error != 0:
+            print("%s" % self.packet_handler.getRxPacketError(scs_error))
+
 
 class Grasper(Feite):
     MAX_ANGLE = 3350
     MIN_ANGLE = 0
 
-    def __init__(self, sid: int, port_handler: PortHandler, config: Tuple = None):
+    def __init__(self, sid: int, port_handler: PortHandler, config: Optional[Tuple] = None):
         super().__init__(sid, port_handler)
         if config:
             self.MIN_ANGLE, self.MAX_ANGLE = config
@@ -78,6 +87,6 @@ class Grasper(Feite):
             print("%s" % self.packet_handler.getRxPacketError(scs_error))
 
 
-def build_grasper(port_name: str, config: Dict):
+def build_grasper(port_name: str):
     port_handler = PortHandler(port_name, 1_000_000)
-    return Grasper(2, port_handler, config.get("left", None)), Grasper(1, port_handler, config.get("left", None))
+    return Grasper(2, port_handler), Grasper(1, port_handler)

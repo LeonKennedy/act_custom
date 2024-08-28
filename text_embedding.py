@@ -8,7 +8,7 @@
 @time: 2024/8/27 18:23
 @desc:
 """
-from sentence_transformers import SentenceTransformer
+
 
 # sentences_1 = ["样例数据-1", "样例数据-2"]
 # sentences_2 = ["样例数据-3", "样例数据-4"]
@@ -24,6 +24,7 @@ from sentence_transformers import SentenceTransformer
 
 
 def text2vec(text):
+    from sentence_transformers import SentenceTransformer
     model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
     return model.encode(text, normalize_embeddings=True)
 
