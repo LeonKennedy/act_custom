@@ -12,8 +12,9 @@ from utils import set_seed  # helper functions
 from policy import ACTPolicy
 from dr import build_two_arm
 from dr.utils import fps_wait
-from dr.constants import FPS
+# from dr.constants import FPS
 from action_chunk import ActionChunk
+from data import normalize_data, unnormalize_data
 
 
 # import IPython
@@ -26,7 +27,7 @@ class Robo:
         self.arm_left, self.arm_right = build_two_arm(SIM_TASK_CONFIGS[task_name])
         self.camera = CameraGroup()
         self.step_idx = 0
-        self.fps = FPS
+        self.fps = 10
         self.bit_width = self.fps / 2
 
     def free_master(self):
@@ -37,8 +38,10 @@ class Robo:
         # free master
         self.arm_left.master.free()
         self.arm_right.master.free()
-        self.arm_left.puppet.move_to1([0, -10, -90, -20, 90, 0])
-        self.arm_right.puppet.move_to1([0, 0, 90, 0, -86, 0])
+        self.arm_left.puppet.move_to1([-20, 20, -42, 22, 88, -14])
+        self.arm_right.puppet.move_to1([24.6, -4.231, 55, -28, -88.5, 21])
+        self.arm_right.grasper.set_angle(800)
+        self.arm_left.grasper.set_angle(800)
 
     def read_angle(self) -> List:
         _, left_angles = self.arm_left.get_all_angle()
@@ -136,21 +139,22 @@ def eval_bc(config, save_episode=True):
     policy.eval()
     print(f'Loaded: {ckpt}', params)
     stats = params['stats']
+    print(stats)
     chunk_size = params['chunk_size']
 
-    pre_process = lambda s_qpos: (s_qpos - stats['qpos_mean']) / stats['qpos_std']
-    post_process = lambda a: a * stats['action_std'] + stats['action_mean']
+    # pre_process = lambda s_qpos: (s_qpos - stats['agent_pos']) / stats['qpos_std']
+    # post_process = lambda a: a * stats['action_std'] + stats['action_mean']
 
     # load environment
-    robo = RoboActionChunk()
+    robo = RoboActionChunk(config['task_name'])
 
-    # flag = input("is need move to init?(t)")
-    # if flag == 't':
-    #     puppet_left.move_to([-125.776, 20.996, -50.522, 8.501, 92.796, -40.213])
-    #     puppet_right.move_to([-50.962, -18.231, 47.637, -12.737, -95.001, 24.392])
+    flag = input("is need move to init?(t)")
+    if flag == 't':
+        robo.start()
     robo.free_master()
 
-    time.sleep(2)
+    time.sleep(5)
+    input("wait start?")
 
     query_frequency = 1
     num_queries = policy_config['num_queries']
@@ -173,7 +177,7 @@ def eval_bc(config, save_episode=True):
             qpos = robo.read_angle()
             qpos = np.array(qpos, dtype=np.float32)
             qpos_data = torch.from_numpy(qpos).float()
-            qpos_data = pre_process(qpos_data)
+            qpos_data = normalize_data(qpos_data, stats["agent_pos"])
 
             with torch.inference_mode():
                 start = time.time()
@@ -198,7 +202,7 @@ def eval_bc(config, save_episode=True):
         # exp_weights = exp_weights / exp_weights.sum()
         # exp_weights = exp_weights[:, np.newaxis]
         # raw_action = (actions_for_curr_step * exp_weights).sum(axis=0)
-        action = post_process(raw_action)
+        action = unnormalize_data(raw_action, stats["agent_pos"])
 
         ##  DOING ROBOTS
         # action = action + np.random.normal(loc=0.0, scale=0.05, size=len(action))
