@@ -21,6 +21,7 @@ from dr import build_two_arm, Arm, fps_wait
 from dr.constants import FPS
 from camera import CameraGroup
 from constants import SIM_TASK_CONFIGS
+from text_embedding import task_assemble
 
 BUTTON_KEY = '5'
 
@@ -56,12 +57,14 @@ class Recorder:
         self.arm_left.master.set_end_torque_zero()
         self.arm_right.master.set_end_torque_zero()
         print("move done, set end torque zero..")
+        task = task_assemble()
+        print("TASK: ", task)
         self.clear_uart()
         i = 0
         global RUNNING_FLAG
         keyboard.on_press_key(BUTTON_KEY, _change_running_flag)
         while True:
-            self.record_one()
+            self.record_one(task)
             i += 1
             RUNNING_FLAG = True
             self.follow()
@@ -135,7 +138,7 @@ class Recorder:
             print("right", episode["right_master"], episode["right_puppet"])
         return episode
 
-    def record_one(self):
+    def record_one(self, task: list):
         print('start record now?')
         keyboard.wait(BUTTON_KEY)
         episodes = []
@@ -153,7 +156,7 @@ class Recorder:
 
         duration = time.time() - start_tm
         f = f'{self.save_path}/{datetime.now().strftime("%m_%d_%H_%M_%S")}.pkl'
-        pickle.dump(episodes, open(f, 'wb'))
+        pickle.dump({"data": episodes, "task": task}, open(f, 'wb'))
         print(f'save to {f}, length {len(episodes)} FPS {round(len(episodes) / duration, 2)}')
 
     def follow(self):

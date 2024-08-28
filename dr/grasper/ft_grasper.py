@@ -15,7 +15,7 @@ class Feite:
         self.port_handler = port_handler
         self.packet_handler = sms_sts(self.port_handler)
         if self.port_handler.openPort():
-            print("Succeeded to open the port")
+            print("Feite Succeeded to open the port")
         else:
             print("Failed to open the port")
             print("Press any key to terminate...")
