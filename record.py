@@ -8,12 +8,9 @@
 @time: 2024/5/20 15:52
 @desc:
 """
-import os
 import pickle
-import sys
 import time
 from datetime import datetime
-import concurrent.futures
 from pathlib import Path
 
 import keyboard
@@ -21,8 +18,7 @@ import keyboard
 from dr import build_two_arm, Arm, fps_wait
 from dr.constants import FPS
 from camera import CameraGroup
-from constants import SIM_TASK_CONFIGS
-from text_embedding import task_assemble
+from prompt import cube_assemble
 
 BUTTON_KEY = '5'
 
@@ -55,7 +51,7 @@ class Recorder:
         self.arm_left.master.set_end_torque_zero()
         self.arm_right.master.set_end_torque_zero()
         print("move done, set end torque zero..")
-        task = task_assemble()
+        task = cube_assemble()
         print("TASK: ", task)
         self.clear_uart()
         i = 0

@@ -23,10 +23,6 @@
 # print(similarity)
 
 
-def text2vec(text):
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
-    return model.encode(text, normalize_embeddings=True)
 
 
 def task_assemble():
