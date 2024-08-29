@@ -68,14 +68,14 @@ class DETRVAE(nn.Module):
         self.cls_embed = nn.Embedding(1, hidden_dim)  # extra cls token embedding
         self.encoder_action_proj = nn.Linear(arm_servo_cnt * arm_cnt, hidden_dim)  # project action to embedding
         self.encoder_joint_proj = nn.Linear(arm_servo_cnt * arm_cnt, hidden_dim)  # project qpos to embedding
-        self.encoder_prompt_proj = nn.Linear(1024, hidden_dim)  # project prompt to embedding
         self.latent_proj = nn.Linear(hidden_dim, self.latent_dim * 2)  # project hidden state to latent std, var
         self.register_buffer('pos_table',
-                             get_sinusoid_encoding_table(3 + num_queries, hidden_dim))  # [CLS], qpos, a_seq
+                             get_sinusoid_encoding_table(2 + num_queries, hidden_dim))  # [CLS], qpos, a_seq
 
         # decoder extra parameters
         self.latent_out_proj = nn.Linear(self.latent_dim, hidden_dim)  # project latent sample to embedding
-        self.additional_pos_embed = nn.Embedding(2, hidden_dim)  # learned position embedding for proprio and latent
+        self.additional_pos_embed = nn.Embedding(2+1, hidden_dim)  # learned position embedding for proprio and latent
+        self.proj_text_emb = nn.Linear(1024, hidden_dim)
 
     def forward(self, qpos, image, prompt, actions=None, is_pad=None):
         """
@@ -92,15 +92,12 @@ class DETRVAE(nn.Module):
             action_embed = self.encoder_action_proj(actions)  # (bs, seq, hidden_dim)
             qpos_embed = self.encoder_joint_proj(qpos)  # (bs, hidden_dim)
             qpos_embed = torch.unsqueeze(qpos_embed, axis=1)  # (bs, 1, hidden_dim)
-            prompt_embed = self.encoder_prompt_proj(prompt)  # (bs, hidden_dim)
-            prompt_embed = torch.unsqueeze(prompt_embed, axis=1)  # (bs, 1, hidden_dim)
             cls_embed = self.cls_embed.weight  # (1, hidden_dim)
             cls_embed = torch.unsqueeze(cls_embed, axis=0).repeat(bs, 1, 1)  # (bs, 1, hidden_dim)
-            encoder_input = torch.cat([cls_embed, qpos_embed, action_embed, prompt_embed],
-                                      axis=1)  # (bs, seq+1 + 1, hidden_dim)
+            encoder_input = torch.cat([cls_embed, qpos_embed, action_embed], axis=1)  # (bs, seq+1 + 1, hidden_dim)
             encoder_input = encoder_input.permute(1, 0, 2)  # (seq+1, bs, hidden_dim)
             # do not mask cls token
-            cls_joint_is_pad = torch.full((bs, 3), False).to(qpos.device)  # False: not a padding
+            cls_joint_is_pad = torch.full((bs, 2), False).to(qpos.device)  # False: not a padding
             is_pad = torch.cat([cls_joint_is_pad, is_pad], axis=1)  # (bs, seq+1)
             # obtain position embedding
             pos_embed = self.pos_table.clone().detach()
@@ -118,6 +115,8 @@ class DETRVAE(nn.Module):
             latent_sample = torch.zeros([bs, self.latent_dim], dtype=torch.float32).to(qpos.device)
             latent_input = self.latent_out_proj(latent_sample)
 
+        prompt_emb = self.proj_text_emb(prompt)
+
         if self.backbones is not None:
             # Image observation features and position embeddings
             all_cam_features = []
@@ -134,7 +133,7 @@ class DETRVAE(nn.Module):
             src = torch.cat(all_cam_features, axis=3)
             pos = torch.cat(all_cam_pos, axis=3)
             hs = self.transformer(src, None, self.query_embed.weight, pos, latent_input, proprio_input,
-                                  self.additional_pos_embed.weight)[0]
+                                  self.additional_pos_embed.weight, prompt_emb)[0]
         else:
             qpos = self.input_proj_robot_state(qpos)
             env_state = self.input_proj_env_state(env_state)
@@ -143,63 +142,6 @@ class DETRVAE(nn.Module):
         a_hat = self.action_head(hs)
         is_pad_hat = self.is_pad_head(hs)
         return a_hat, is_pad_hat, [mu, logvar]
-
-
-class CNNMLP(nn.Module):
-    def __init__(self, backbones, state_dim, camera_names):
-        """ Initializes the model.
-        Parameters:
-            backbones: torch module of the backbone to be used. See backbone.py
-            transformer: torch module of the transformer architecture. See transformer.py
-            state_dim: robot state dimension of the environment
-            num_queries: number of object queries, ie detection slot. This is the maximal number of objects
-                         DETR can detect in a single image. For COCO, we recommend 100 queries.
-            aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
-        """
-        super().__init__()
-        self.camera_names = camera_names
-        self.action_head = nn.Linear(1000, state_dim)  # TODO add more
-        if backbones is not None:
-            self.backbones = nn.ModuleList(backbones)
-            backbone_down_projs = []
-            for backbone in backbones:
-                down_proj = nn.Sequential(
-                    nn.Conv2d(backbone.num_channels, 128, kernel_size=5),
-                    nn.Conv2d(128, 64, kernel_size=5),
-                    nn.Conv2d(64, 32, kernel_size=5)
-                )
-                backbone_down_projs.append(down_proj)
-            self.backbone_down_projs = nn.ModuleList(backbone_down_projs)
-
-            mlp_in_dim = 768 * len(backbones) + 14
-            self.mlp = mlp(input_dim=mlp_in_dim, hidden_dim=1024, output_dim=14, hidden_depth=2)
-        else:
-            raise NotImplementedError
-
-    def forward(self, qpos, image, env_state, actions=None):
-        """
-        qpos: batch, qpos_dim
-        image: batch, num_cam, channel, height, width
-        env_state: None
-        actions: batch, seq, action_dim
-        """
-        is_training = actions is not None  # train or val
-        bs, _ = qpos.shape
-        # Image observation features and position embeddings
-        all_cam_features = []
-        for cam_id, cam_name in enumerate(self.camera_names):
-            features, pos = self.backbones[cam_id](image[:, cam_id])
-            features = features[0]  # take the last layer feature
-            pos = pos[0]  # not used
-            all_cam_features.append(self.backbone_down_projs[cam_id](features))
-        # flatten everything
-        flattened_features = []
-        for cam_feature in all_cam_features:
-            flattened_features.append(cam_feature.reshape([bs, -1]))
-        flattened_features = torch.cat(flattened_features, axis=1)  # 768 each
-        features = torch.cat([flattened_features, qpos], axis=1)  # qpos: 14
-        a_hat = self.mlp(features)
-        return a_hat
 
 
 def mlp(input_dim, hidden_dim, output_dim, hidden_depth):
@@ -250,29 +192,6 @@ def build(args):
         encoder,
         state_dim=state_dim,
         num_queries=args.num_queries,
-        camera_names=args.camera_names,
-    )
-
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("number of parameters: %.2fM" % (n_parameters / 1e6,))
-
-    return model
-
-
-def build_cnnmlp(args):
-    state_dim = 14  # TODO hardcode
-
-    # From state
-    # backbone = None # from state for now, no need for conv nets
-    # From image
-    backbones = []
-    for _ in args.camera_names:
-        backbone = build_backbone(args)
-        backbones.append(backbone)
-
-    model = CNNMLP(
-        backbones,
-        state_dim=state_dim,
         camera_names=args.camera_names,
     )
 
