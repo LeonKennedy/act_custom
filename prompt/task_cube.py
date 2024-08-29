@@ -8,7 +8,7 @@
 @time: 2024/8/28 16:25
 @desc:
 """
-from typing import Tuple
+from typing import Tuple, Dict, List
 from itertools import product
 
 TASK_1 = (('left', 'right'), ('red', 'blue', 'yellow'), ('red', 'blue'))
@@ -38,14 +38,14 @@ def cube_assemble():
 #         out.append((i, j, k))
 #     return out
 
-def elem_to_text(elem: Tuple) -> dict:
+def elem_to_text(elem: Tuple) -> Dict[Tuple, List[str]]:
     arm, cube_color, box_color = elem
     sens = []
     sens.append(f"use {arm} arm take {cube_color} cube, then put into {box_color} box")
     return {elem: sens}
 
 
-def task_cube_generate_text():
+def task_cube_generate_text() -> Dict[Tuple, List[str]]:
     task_list = product(*TASK_1)
     out = {}
     for e in task_list:

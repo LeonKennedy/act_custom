@@ -13,19 +13,22 @@ from typing import List, Tuple
 import numpy as np
 import pickle
 
-from task_select import task_cube_generate_text
-from text_embedding import text2vec
+from task_cube import task_cube_generate_text
+from task_tea import task_tea_generate_text
+from text_embedding import TextEmbedding, DATA_PATH
 
-data_path = "assets/task_embedding.pkl"
 
 
 def run():
-    task_texts = task_cube_generate_text()
     out = {}
+    task_texts = task_cube_generate_text()
+    for key, strs in task_texts.items():
+        out[key] = embedding(strs)
+    task_texts = task_tea_generate_text()
     for key, strs in task_texts.items():
         out[key] = embedding(strs)
 
-    pickle.dump(out, open(data_path, 'wb'))
+    pickle.dump(out, open(DATA_PATH, 'wb'))
     print("save to ", data_path)
     return out
 
@@ -33,9 +36,10 @@ def run():
 def embedding(texts) -> List[Tuple[str, np.ndarray]]:
     out = []
     for text in texts:
-        out.append((text, text2vec(text)))
+        out.append((text, text_emb.text2vec(text)))
     return out
 
 
 if __name__ == '__main__':
+    text_emb = TextEmbedding()
     run()

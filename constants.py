@@ -40,7 +40,17 @@ SIM_TASK_CONFIGS = {
             "right": (0, 3300)
         },
         'camera_names': ['top', 'left', "right"]
-    }
+    },
+    "multi": {
+        'dataset_file': './output/multi_train_data.pkl',
+        'test_dataset_file': './output/multi_test_data.pkl',
+        "grasper": {
+            "left": (0, 3200),
+            "right": (0, 3300)
+        },
+        'camera_names': ['top', 'left', "right"]
+    },
+
 }
 
 ### Simulation envs fixed constants

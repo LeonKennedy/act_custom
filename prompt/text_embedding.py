@@ -8,11 +8,30 @@
 @time: 2024/8/28 16:38
 @desc:
 """
+import os.path
+import pickle
+import random
 
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+DATA_PATH = "assets/task_embedding.pkl"
 
 
-def text2vec(text):
-    return model.encode(text, normalize_embeddings=True)
+class TextEmbedding:
+    def __init__(self):
+        self.model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+
+    def text2vec(self, text):
+        return self.model.encode(text, normalize_embeddings=True)
+
+
+class TextEmbeddingTransformer:
+
+    def __init__(self):
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        self.model = pickle.load(open(os.path.join(dir_path, DATA_PATH), 'rb'))
+
+    def embedding(self, text) -> np.ndarray:
+        elems =  self.model[text]
+        return random.choice(elems)[1]

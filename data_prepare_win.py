@@ -24,7 +24,8 @@ def get_all_file(raw_data_path: str):
 def process(all_files: list):
     epsoides = []
     for file in all_files:
-        datas = pickle.load(open(file, 'rb'))
+        tmp = pickle.load(open(file, 'rb'))
+        datas = tmp["data"]
         epsoide = {'name': file.split("/")[-1].split(".")[0],
                    'image': {
                        'left': [],
@@ -33,7 +34,8 @@ def process(all_files: list):
                        'top': []
                    },
                    'qpos': [],
-                   'action': []
+                   'action': [],
+                   'task': tmp.get('task', 'tea')
                    }
         if (len(datas)) < 40:
             print("warning: ", file, len(datas), "less 40")
@@ -72,8 +74,8 @@ def process(all_files: list):
 
 
 if __name__ == '__main__':
-    # task_name = sys.argv[1]
-    task_name = 'tea'
+    task_name = sys.argv[1]
+    # task_name = 'multi'
     conf = SIM_TASK_CONFIGS[task_name]
     train_data_path = conf['dataset_file']
     test_data_path = conf['test_dataset_file']

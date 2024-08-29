@@ -77,8 +77,9 @@ def forward_pass(data, policy):
     image_data = data["image"]
     qpos_data = data["agent_pos"]
     action_data  = data["action"]
+    prompt = data["prompt"]
     is_pad = torch.zeros(action_data.shape[:2]).bool()
-    return policy(qpos_data.cuda(), image_data.cuda(), action_data.cuda(), is_pad.cuda())  # TODO remove None
+    return policy(qpos_data.cuda(), image_data.cuda(), prompt.cuda(), action_data.cuda(), is_pad.cuda())  # TODO remove None
 
 
 def load_ckpt(policy, ckpt_path):

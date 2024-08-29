@@ -16,6 +16,7 @@ import torch
 import numpy as np
 
 from .main import normalize_data, get_stats
+from prompt import TextEmbeddingTransformer
 
 
 def _stack_img(images: dict, idx: int, camera_names: list) -> np.ndarray:
@@ -41,6 +42,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
         normalized_data['qpos'] = normalize_data(data['qpos'], stats['agent_pos'])
         normalized_data['action'] = normalize_data(data['action'], stats['action'])
         self.normalized_data = normalized_data
+        self.emb= TextEmbeddingTransformer()
 
     def __len__(self) -> int:
         return self.data['qpos'].shape[0] - self.pred_horizon
@@ -49,7 +51,8 @@ class EpisodicDataset(torch.utils.data.Dataset):
         imgs = _stack_img(self.data['image'], idx, self.camera_names)
         agent_pos = self.normalized_data['qpos'][idx]
         action = self.normalized_data['action'][idx: idx + self.pred_horizon]
-        return imgs, agent_pos, action
+        prompt_embedding = self.emb.embedding(self.data['task'])
+        return imgs, agent_pos, prompt_embedding, action
 
 
 def build_datasets(path, pred_horizon: int, camera_names):
@@ -67,11 +70,13 @@ def collate_fn(x):
     image = np.moveaxis(image, -1, 2) / 255
     image = image.astype(np.float32)
     pos = np.stack([x[i][1] for i in range(len(x))], dtype=np.float32)
-    action = np.stack([x[i][2] for i in range(len(x))], dtype=np.float32)
+    prompt = np.stack([x[i][2] for i in range(len(x))], dtype=np.float32)
+    action = np.stack([x[i][3] for i in range(len(x))], dtype=np.float32)
     return {
         "image": torch.from_numpy(image),
         "agent_pos": torch.from_numpy(pos),
-        "action": torch.from_numpy(action)
+        "action": torch.from_numpy(action),
+        "prompt": torch.from_numpy(prompt)
     }
 
 
