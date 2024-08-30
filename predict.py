@@ -2,6 +2,7 @@ import time
 from typing import List
 import argparse
 
+import keyboard
 import torch
 import numpy as np
 from loguru import logger
@@ -23,8 +24,8 @@ from data import normalize_data, unnormalize_data
 
 
 class Robo:
-    def __init__(self, task_name: str):
-        self.arm_left, self.arm_right = build_two_arm(SIM_TASK_CONFIGS[task_name])
+    def __init__(self):
+        self.arm_left, self.arm_right = build_two_arm()
         self.camera = CameraGroup()
         self.step_idx = 0
         self.fps = 10
@@ -51,18 +52,6 @@ class Robo:
         angles = left_angles + [left_grasper_angle] + right_angles + [right_grasper_angle]
         return angles
 
-    def first(self):
-        angles = self.read_angle()
-        self.angles.append(angles)
-        self.angles.append(angles)
-        self.angles.append(angles)
-
-        img = self.camera.read_stack()
-        self.images.append(img)
-        self.images.append(img)
-        self.images.append(img)
-        return img, angles
-
     def action(self, action, s):
         left_angle, left_grasper = action[:6], action[6]
         self.arm_left.puppet.move_to(left_angle, self.bit_width)
@@ -79,6 +68,10 @@ class Robo:
 
 class RoboActionChunk(Robo):
     pass
+
+
+def select_task():
+    return ("right", "red", "blue")
 
 
 def main(args):
@@ -111,7 +104,6 @@ def main(args):
                      }
 
     config = {
-        'ckpt': args['ckpt'],
         'state_dim': state_dim,
         'lr': args['lr'],
         'policy_config': policy_config,
@@ -120,51 +112,39 @@ def main(args):
         'camera_names': camera_names,
         'real_robot': True
     }
-
-    success_rate, avg_return = eval_bc(config, save_episode=False)
-
-
-def eval_bc(config, save_episode=True):
-    set_seed(0)
-    ckpt = config['ckpt']
-    policy_config = config['policy_config']
-
-    # load policy and stats
+    global RUNNING_FLAG
     policy = ACTPolicy(policy_config)
+    ckpt = args['ckpt']
     params = torch.load(ckpt)
     loading_status = policy.load_state_dict(params['weight'])
     del params['weight']
-    print("loading status: ", loading_status)
+    print("loading", ckpt, "status:", loading_status, "params:", params)
     policy.cuda()
     policy.eval()
-    print(f'Loaded: {ckpt}', params)
     stats = params['stats']
-    print(stats)
     chunk_size = params['chunk_size']
+    robo = RoboActionChunk()
+    while 1:
+        task = select_task()
+        eval_bc(robo, policy, chunk_size, stats, task)
 
-    # pre_process = lambda s_qpos: (s_qpos - stats['agent_pos']) / stats['qpos_std']
-    # post_process = lambda a: a * stats['action_std'] + stats['action_mean']
 
-    # load environment
-    robo = RoboActionChunk(config['task_name'])
-
+def eval_bc(robo: Robo, policy: ACTPolicy, chunk_size: int, stats: dict, task_emb):
+    set_seed(0)
     flag = input("is need move to init?(t)")
     if flag == 't':
         robo.start()
-    robo.free_master()
 
-    time.sleep(5)
     input("wait start?")
 
     query_frequency = 1
-    num_queries = policy_config['num_queries']
-
+    # num_queries = policy_config['num_queries']
     # max_timesteps = 40  # may increase for real-world tasks
     # all_time_actions = np.zeros([max_timesteps, num_queries, 14])
 
     chunker = ActionChunk(chunk_size)
     t = 0
-    while True:
+    while RUNNING_FLAG:
         start = time.time()
         # Observation
 
@@ -181,7 +161,7 @@ def eval_bc(config, save_episode=True):
 
             with torch.inference_mode():
                 start = time.time()
-                all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda())
+                all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda(), task_emb)
                 print(all_actions.shape, '模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
@@ -212,6 +192,15 @@ def eval_bc(config, save_episode=True):
         t += 1
 
 
+RUNNING_FLAG = False
+
+
+def _change_running_flag(event):
+    global RUNNING_FLAG
+    RUNNING_FLAG = not RUNNING_FLAG
+    print(f"change running flag to {RUNNING_FLAG}")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str)
@@ -226,5 +215,6 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_dim', action='store', type=int, help='hidden_dim', required=False, default=512)
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', required=False,
                         default=2800)
-
+    BUTTON_KEY = '5'
+    keyboard.on_press_key(BUTTON_KEY, _change_running_flag)
     main(vars(parser.parse_args()))

@@ -15,7 +15,7 @@ import pickle
 
 from task_cube import task_cube_generate_text
 from task_tea import task_tea_generate_text
-from text_embedding import TextEmbedding, DATA_PATH
+from text_embedding import TextEmbedding, DATA_PATH, TextEmbeddingTransformer
 
 
 
@@ -29,7 +29,7 @@ def run():
         out[key] = embedding(strs)
 
     pickle.dump(out, open(DATA_PATH, 'wb'))
-    print("save to ", data_path)
+    print("save to ", DATA_PATH)
     return out
 
 
@@ -43,3 +43,5 @@ def embedding(texts) -> List[Tuple[str, np.ndarray]]:
 if __name__ == '__main__':
     text_emb = TextEmbedding()
     run()
+    tet = TextEmbeddingTransformer()
+    tet.show()

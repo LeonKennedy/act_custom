@@ -33,5 +33,16 @@ class TextEmbeddingTransformer:
         self.model = pickle.load(open(os.path.join(dir_path, DATA_PATH), 'rb'))
 
     def embedding(self, text) -> np.ndarray:
-        elems =  self.model[text]
+        elems = self.model[text]
         return random.choice(elems)[1]
+
+    def show(self):
+        for k, v in self.model.items():
+            print("[KEY]", k)
+            for i in v:
+                print(i[0])
+
+
+if __name__ == '__main__':
+    tet = TextEmbeddingTransformer()
+    tet.show()

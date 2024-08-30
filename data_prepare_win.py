@@ -23,6 +23,8 @@ def get_all_file(raw_data_path: str):
 
 def process(all_files: list):
     epsoides = []
+    image_dir = os.path.join(raw_data_path, 'images')
+    os.makedirs(image_dir, exist_ok=True)
     for file in all_files:
         tmp = pickle.load(open(file, 'rb'))
         datas = tmp["data"]
@@ -41,8 +43,6 @@ def process(all_files: list):
             print("warning: ", file, len(datas), "less 40")
             continue
         print(file)
-        image_dir = os.path.join(raw_data_path, 'images')
-        os.makedirs(image_dir, exist_ok=True)
 
         step = 2 if "08_21_" in file else 1
         for i in range(0, len(datas), step):
@@ -61,28 +61,27 @@ def process(all_files: list):
         epsoide['action'] = np.array(epsoide['action'], dtype=np.float32)
         print(file, "action shape:", epsoide['action'].shape, "qpos shape:", epsoide['qpos'].shape)
         epsoides.append(epsoide)
+    return epsoides
 
-        # break
-
-    random.shuffle(epsoides)
-    train_ratio = 0.9
-    train = epsoides
-    test = epsoides[int(len(epsoides) * train_ratio):]
-    pickle.dump(train, open(train_data_path, 'wb'))
-    pickle.dump(test, open(test_data_path, 'wb'))
-    print("epsoide num: train", len(train), "test", len(test))
+    # break
 
 
 if __name__ == '__main__':
-    task_name = sys.argv[1]
     # task_name = 'multi'
-    conf = SIM_TASK_CONFIGS[task_name]
-    train_data_path = conf['dataset_file']
-    test_data_path = conf['test_dataset_file']
+    train_data_path = "output/multi_train_data.pkl"
+    test_data_path = "output/multi_test_data.pkl"
     base_path = "output"
-    raw_data_path = os.path.join(base_path, task_name)
-    if os.path.exists(raw_data_path):
+    all_data = []
+    for task_name in ["cube", "tea"]:
+        raw_data_path = os.path.join(base_path, task_name)
         all_files = get_all_file(raw_data_path)
-        process(all_files)
-    else:
-        raise FileNotFoundError(f"{raw_data_path} not found")
+        data = process(all_files)
+        all_data.extend(data)
+
+    random.shuffle(all_data)
+    train_ratio = 0.9
+    train = all_data
+    test = all_data[int(len(all_data) * train_ratio):]
+    pickle.dump(train, open(train_data_path, 'wb'))
+    pickle.dump(test, open(test_data_path, 'wb'))
+    print("epsoide num: train", len(train), "test", len(test))
