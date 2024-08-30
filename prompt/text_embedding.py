@@ -42,6 +42,13 @@ class TextEmbeddingTransformer:
             for i in v:
                 print(i[0])
 
+    def select(self):
+        keys = [k for k in self.model.keys()]
+        print(keys)
+        i = input("select one?\n")
+        return keys[int(i)]
+
+
 
 if __name__ == '__main__':
     tet = TextEmbeddingTransformer()

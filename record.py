@@ -9,6 +9,7 @@
 @desc:
 """
 import pickle
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,13 +27,15 @@ BUTTON_KEY = '5'
 class Recorder:
 
     def __init__(self, arm_left: Arm, arm_right: Arm):
-        self.save_path = "output/multi/%s" % datetime.now().strftime("%m_%d")
+        self.save_path = "output/%s/%s" % (task_name, datetime.now().strftime("%m_%d"))
         Path(self.save_path).mkdir(parents=True, exist_ok=True)
 
         self.arm_left = arm_left
         self.arm_right = arm_right
         self.camera = CameraGroup()
         self.bit_width = 1 / FPS / 2
+        self.record_frequency = 2
+        print("Moving FPS", FPS, "Recording FPS", FPS / self.record_frequency)
 
     def clear_uart(self):
         self.arm_left.clear_uart()
@@ -144,7 +147,7 @@ class Recorder:
         i = 0
         while RUNNING_FLAG:
             episode = self._record_episode()
-            if i % 2 == 0:
+            if i % self.record_frequency == 0:
                 episodes.append(episode)
             i += 1
 
@@ -177,7 +180,7 @@ def _change_running_flag(event):
 
 
 if __name__ == '__main__':
+    task_name = sys.argv[1]
     arm_left, arm_right = build_two_arm()
     r = Recorder(arm_left, arm_right)
-    # button = Button(BUTTON_NAME, 9600)
     r.record()

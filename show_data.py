@@ -1,6 +1,7 @@
 import os.path
 import pickle
 import sys
+import time
 
 import cv2
 import numpy as np
@@ -13,16 +14,17 @@ def show_image(name, bytes):
 
 
 def combine_image(images):
-    a = np.concatenate([images["TOP"], images["FRONT"]])
-    b = np.concatenate([images["LEFT"], images["RIGHT"]])
-    return a, b
+    b = np.concatenate([images["LEFT"], images['TOP'], images["RIGHT"]])
+    return b
 
 
-def show(episodes):
+def show(data):
+    print(data['task'])
+    episodes = data['data']
+    time.sleep((5))
     for episode in episodes:
-        img1, img2 = combine_image(episode["camera"])
-        cv2.imshow("top-front", img1)
-        cv2.imshow("arm", img2)
+        img = combine_image(episode["camera"])
+        cv2.imshow("left-top-right", img)
         print("left master", episode["left_master"], "left puppet", episode["left_puppet"])
         print("right master", episode["right_master"], "right puppet", episode["right_puppet"])
         # print("trigger", episode["left_trigger"], episode["right_trigger"])
