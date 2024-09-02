@@ -49,7 +49,7 @@ class EpisodicDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         imgs = _stack_img(self.data['image'], idx, self.camera_names)
-        agent_pos = self.normalized_data['qpos'][idx]
+        agent_pos = self.add_noise(self.normalized_data['qpos'][idx])
         episode_len = self.normalized_data['action'].shape[0]
         is_pad = np.zeros(self.pred_horizon)
         if idx + self.pred_horizon > episode_len:
@@ -62,6 +62,10 @@ class EpisodicDataset(torch.utils.data.Dataset):
 
         prompt_embedding = self.emb.embedding(self.data['task'])
         return imgs, agent_pos, prompt_embedding, padding_action, is_pad
+
+    def add_noise(self, pos):
+        return pos + np.random.normal(0, 0.01, pos.shape)
+
 
 
 def build_datasets(path, pred_horizon: int, camera_names):

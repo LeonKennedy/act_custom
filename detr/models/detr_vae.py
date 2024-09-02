@@ -5,7 +5,7 @@ DETR model and criterion classes.
 import torch
 from torch import nn
 from torch.autograd import Variable
-from .backbone import build_backbone
+from .backbone import build_backbone, build_film_backbone
 from .transformer import build_transformer, TransformerEncoder, TransformerEncoderLayer
 
 import numpy as np
@@ -122,7 +122,7 @@ class DETRVAE(nn.Module):
             all_cam_features = []
             all_cam_pos = []
             for cam_id, cam_name in enumerate(self.camera_names):
-                features, pos = self.backbones[cam_id](image[:, cam_id])  # HARDCODED
+                features, pos = self.backbones[cam_id](image[:, cam_id], prompt_emb)  # HARDCODED
                 features = features[0]  # take the last layer feature
                 pos = pos[0]
                 all_cam_features.append(self.input_proj(features))
@@ -179,7 +179,7 @@ def build(args):
     # backbone = build_backbone(args)
     # backbones.append(backbone)
     for _ in args.camera_names:
-        backbone = build_backbone(args)
+        backbone = build_film_backbone(args)
         backbones.append(backbone)
 
     transformer = build_transformer(args)
