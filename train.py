@@ -64,9 +64,9 @@ def main(args):
     # train_dataloader, val_dataloader, stats, _ = load_data(dataset_file, camera_names, batch_size_train,
     #                                                        batch_size_val, args['chunk_size'])
     train_dataloader, val_dataloader, stats = build_dataloader3(task_config['dataset_file'],
-                                                                   task_config['test_dataset_file'],
-                                                                   batch_size_train, args['chunk_size'],
-                                                                   camera_names)
+                                                                task_config['test_dataset_file'],
+                                                                batch_size_train, args['chunk_size'],
+                                                                camera_names)
 
     save_data = {"stats": stats, "chunk_size": args['chunk_size']}
     train_bc(train_dataloader, val_dataloader, config, save_data)
@@ -76,10 +76,11 @@ def forward_pass(data, policy):
     # image_data, qpos_data, action_data, is_pad = data
     image_data = data["image"]
     qpos_data = data["agent_pos"]
-    action_data  = data["action"]
+    action_data = data["action"]
     prompt = data["prompt"]
-    is_pad = torch.zeros(action_data.shape[:2]).bool()
-    return policy(qpos_data.cuda(), image_data.cuda(), prompt.cuda(), action_data.cuda(), is_pad.cuda())  # TODO remove None
+    is_pad = data["is_pad"]
+    return policy(qpos_data.cuda(), image_data.cuda(), prompt.cuda(), action_data.cuda(),
+                  is_pad.cuda())  # TODO remove None
 
 
 def load_ckpt(policy, ckpt_path):
@@ -160,7 +161,6 @@ def train_bc(train_dataloader, val_dataloader, config, save_data):
         summary_string = f'Train loss: {epoch_train_loss:.5f} '
         for k, v in epoch_summary.items():
             summary_string += f'{k}: {v.item():.4f} '
-
 
     ckpt_path = os.path.join(ckpt_dir, f'policy_last.ckpt')
     save_check_point(policy.state_dict(), ckpt_path, save_data)

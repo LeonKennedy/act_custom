@@ -42,17 +42,26 @@ class EpisodicDataset(torch.utils.data.Dataset):
         normalized_data['qpos'] = normalize_data(data['qpos'], stats['agent_pos'])
         normalized_data['action'] = normalize_data(data['action'], stats['action'])
         self.normalized_data = normalized_data
-        self.emb= TextEmbeddingTransformer()
+        self.emb = TextEmbeddingTransformer()
 
     def __len__(self) -> int:
-        return self.data['qpos'].shape[0] - self.pred_horizon
+        return self.data['qpos'].shape[0] - 20
 
     def __getitem__(self, idx):
         imgs = _stack_img(self.data['image'], idx, self.camera_names)
         agent_pos = self.normalized_data['qpos'][idx]
-        action = self.normalized_data['action'][idx: idx + self.pred_horizon]
+        episode_len = self.normalized_data['action'].shape[0]
+        is_pad = np.zeros(self.pred_horizon)
+        if idx + self.pred_horizon > episode_len:
+            padding_action = np.zeros((self.pred_horizon, self.normalized_data['action'].shape[1]), dtype=np.float32)
+            actual_len = episode_len - idx
+            padding_action[:actual_len] = self.normalized_data['action'][idx:]
+            is_pad[actual_len:] = 1
+        else:
+            padding_action = self.normalized_data['action'][idx: idx + self.pred_horizon]
+
         prompt_embedding = self.emb.embedding(self.data['task'])
-        return imgs, agent_pos, prompt_embedding, action
+        return imgs, agent_pos, prompt_embedding, padding_action, is_pad
 
 
 def build_datasets(path, pred_horizon: int, camera_names):
@@ -72,11 +81,13 @@ def collate_fn(x):
     pos = np.stack([x[i][1] for i in range(len(x))], dtype=np.float32)
     prompt = np.stack([x[i][2] for i in range(len(x))], dtype=np.float32)
     action = np.stack([x[i][3] for i in range(len(x))], dtype=np.float32)
+    is_pad = np.stack([x[i][4] for i in range(len(x))])
     return {
         "image": torch.from_numpy(image),
         "agent_pos": torch.from_numpy(pos),
         "action": torch.from_numpy(action),
-        "prompt": torch.from_numpy(prompt)
+        "prompt": torch.from_numpy(prompt),
+        "is_pad": torch.from_numpy(is_pad).bool()
     }
 
 
@@ -89,9 +100,9 @@ def build_dataloader3(path: str, test_path: str, batch_size: int, pred_horizon: 
         shuffle=True,
         # accelerate cpu-gpu transfer
         pin_memory=True,
-        num_workers=10,
+        # num_workers=10,
         # # don't kill worker process afte each epoch
-        persistent_workers=True,
+        # persistent_workers=True,
         collate_fn=collate_fn
     )
     val_ds, _ = build_datasets(test_path, pred_horizon, camera_names)
