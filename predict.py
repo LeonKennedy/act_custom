@@ -16,6 +16,7 @@ from dr.utils import fps_wait
 # from dr.constants import FPS
 from action_chunk import ActionChunk
 from data import normalize_data, unnormalize_data
+from prompt import TextEmbeddingTransformer
 
 
 # import IPython
@@ -24,11 +25,11 @@ from data import normalize_data, unnormalize_data
 
 
 class Robo:
-    def __init__(self):
+    def __init__(self, fps: int):
         self.arm_left, self.arm_right = build_two_arm()
         self.camera = CameraGroup()
         self.step_idx = 0
-        self.fps = 10
+        self.fps = fps
         self.bit_width = self.fps / 2
 
     def free_master(self):
@@ -66,12 +67,12 @@ class Robo:
         self.step_idx += 1
 
 
-class RoboActionChunk(Robo):
-    pass
-
-
-def select_task():
-    return ("right", "red", "blue")
+def select_task() -> np.ndarray:
+    # key = ("right", "red", "blue")
+    key = tet.select()
+    emb = tet.embedding(key)
+    print(key, emb)
+    return emb
 
 
 def main(args):
@@ -123,9 +124,10 @@ def main(args):
     policy.eval()
     stats = params['stats']
     chunk_size = params['chunk_size']
-    robo = RoboActionChunk()
+    robo = Robo(fps=15)
     while 1:
         task = select_task()
+        RUNNING_FLAG = True
         eval_bc(robo, policy, chunk_size, stats, task)
 
 
@@ -141,7 +143,7 @@ def eval_bc(robo: Robo, policy: ACTPolicy, chunk_size: int, stats: dict, task_em
     # num_queries = policy_config['num_queries']
     # max_timesteps = 40  # may increase for real-world tasks
     # all_time_actions = np.zeros([max_timesteps, num_queries, 14])
-
+    task_emb = torch.from_numpy(task_emb)
     chunker = ActionChunk(chunk_size)
     t = 0
     while RUNNING_FLAG:
@@ -161,7 +163,8 @@ def eval_bc(robo: Robo, policy: ACTPolicy, chunk_size: int, stats: dict, task_em
 
             with torch.inference_mode():
                 start = time.time()
-                all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda(), task_emb)
+                all_actions = policy(qpos_data.unsqueeze(0).cuda(), image_data.unsqueeze(0).cuda(),
+                                     task_emb.unsqueeze(0).cuda())
                 print(all_actions.shape, '模型预测耗时:', (time.time() - start))
 
         # ACTION CHUNK
@@ -217,4 +220,5 @@ if __name__ == '__main__':
                         default=2800)
     BUTTON_KEY = '5'
     keyboard.on_press_key(BUTTON_KEY, _change_running_flag)
+    tet = TextEmbeddingTransformer()
     main(vars(parser.parse_args()))
