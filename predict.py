@@ -104,15 +104,15 @@ def main(args):
                      'camera_names': camera_names,
                      }
 
-    config = {
-        'state_dim': state_dim,
-        'lr': args['lr'],
-        'policy_config': policy_config,
-        'task_name': task_name,
-        'seed': args['seed'],
-        'camera_names': camera_names,
-        'real_robot': True
-    }
+    # config = {
+    #     'state_dim': state_dim,
+    #     'lr': args['lr'],
+    #     'policy_config': policy_config,
+    #     'task_name': task_name,
+    #     'seed': args['seed'],
+    #     'camera_names': camera_names,
+    #     'real_robot': True
+    # }
     global RUNNING_FLAG
     policy = ACTPolicy(policy_config)
     ckpt = args['ckpt']
@@ -214,11 +214,12 @@ if __name__ == '__main__':
 
     # for ACT
     parser.add_argument('--kl_weight', action='store', type=int, help='KL Weight', required=False, default=10)
-    parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', required=False, default=100)
+    parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size', required=False)
     parser.add_argument('--hidden_dim', action='store', type=int, help='hidden_dim', required=False, default=512)
     parser.add_argument('--dim_feedforward', action='store', type=int, help='dim_feedforward', required=False,
                         default=2800)
     BUTTON_KEY = '5'
     keyboard.on_press_key(BUTTON_KEY, _change_running_flag)
     tet = TextEmbeddingTransformer()
+    args = parser.parse_args()
     main(vars(parser.parse_args()))

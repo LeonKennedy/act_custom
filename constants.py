@@ -41,6 +41,11 @@ SIM_TASK_CONFIGS = {
         },
         'camera_names': ['top', 'left', "right"]
     },
+    "grip_pen": {
+        'dataset_file': './output/pen_train_data.pkl',
+        'test_dataset_file': './output/pen_test_data.pkl',
+        'camera_names': ['top', 'left', "right"]
+    },
     "multi": {
         'dataset_file': './output/multi_train_data.pkl',
         'test_dataset_file': './output/multi_test_data.pkl',

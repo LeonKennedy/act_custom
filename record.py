@@ -54,7 +54,10 @@ class Recorder:
         self.arm_left.master.set_end_torque_zero()
         self.arm_right.master.set_end_torque_zero()
         print("move done, set end torque zero..")
-        task = cube_assemble()
+        if task_name == "cube":
+            task = cube_assemble()
+        else:
+            task = task_name
         print("TASK: ", task)
         self.clear_uart()
         i = 0
@@ -153,7 +156,7 @@ class Recorder:
 
         duration = time.time() - start_tm
         f = f'{self.save_path}/{datetime.now().strftime("%m_%d_%H_%M_%S")}.pkl'
-        pickle.dump({"data": episodes, "task": task}, open(f, 'wb'))
+        pickle.dump({"data": episodes, "task": task, "FPS": FPS}, open(f, 'wb'))
         print(f'save to {f}, length {len(episodes)} FPS {round(len(episodes) / duration, 2)}')
 
     def follow(self):
