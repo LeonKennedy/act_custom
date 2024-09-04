@@ -51,7 +51,7 @@ class Feite:
 
 
 class Grasper(Feite):
-    MAX_ANGLE = 3350
+    MAX_ANGLE = 3400
     MIN_ANGLE = 0
 
     def __init__(self, sid: int, port_handler: PortHandler, config: Optional[Tuple] = None):
